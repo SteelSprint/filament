@@ -1,0 +1,433 @@
+package main
+
+import (
+	"encoding/xml"
+	"fmt"
+	"io"
+	"regexp"
+	"strings"
+)
+
+var idPattern = regexp.MustCompile(`^[a-z0-9_]+(\.[a-z0-9_]+)*$`)
+
+type Violation struct {
+	Rule   string
+	Detail string
+}
+
+func (v Violation) String() string {
+	return v.Rule + ": " + v.Detail
+}
+
+// #F id:0lsoy7u2 parser_rules.description_ignored parser_rules.path_group parser_rules.no_forward_refs parser_rules.no_cycles parser_rules.no_self_references parser_rules.no_text_on_sections parser_rules.no_empty_clauses parser_rules.no_empty_sections parser_rules.no_empty_terms parser_rules.unique_ids parser_rules.valid_id_format parser_rules.single_definitions parser_rules.terms_in_definitions
+
+
+
+
+
+
+
+
+
+
+
+
+
+func ParseSpecFile(path string) (*Spec, []Violation, error) {
+	data, err := readFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ParseSpec(data)
+}
+
+func ParseSpec(data []byte) (*Spec, []Violation, error) {
+	spec, err := parseFromReader(stringReader(data))
+	if err != nil {
+		return nil, nil, err
+	}
+	var violations []Violation
+	validate(spec, &violations)
+	return spec, violations, nil
+}
+
+func stringReader(s []byte) io.Reader {
+	return &byteReader{buf: s, pos: 0}
+}
+
+type byteReader struct {
+	buf []byte
+	pos int
+}
+
+func (r *byteReader) Read(p []byte) (int, error) {
+	if r.pos >= len(r.buf) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.buf[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+func parseFromReader(r io.Reader) (*Spec, error) {
+	dec := xml.NewDecoder(r)
+	spec := &Spec{}
+	stack := []*Element{}
+
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("xml parse error: %w", err)
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			var parent *Element
+			if len(stack) > 0 {
+				parent = stack[len(stack)-1]
+			}
+			el, selfClosing, err := parseStartElement(t, dec, parent, spec)
+			if err != nil {
+				return nil, err
+			}
+			if el == nil {
+				continue
+			}
+			if parent != nil {
+				el.Parent = parent
+				parent.Kids = append(parent.Kids, el)
+			} else {
+				spec.Elements = append(spec.Elements, el)
+			}
+			if !selfClosing {
+				stack = append(stack, el)
+			}
+		case xml.EndElement:
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		case xml.CharData:
+			if len(stack) > 0 {
+				stack[len(stack)-1].Text += string(t)
+			}
+		}
+	}
+
+	return spec, nil
+}
+
+func parseStartElement(t xml.StartElement, dec *xml.Decoder, parent *Element, spec *Spec) (*Element, bool, error) {
+	switch t.Name.Local {
+	case "spec":
+		for _, attr := range t.Attr {
+			if attr.Name.Local == "name" {
+				spec.Name = attr.Value
+			}
+		}
+		return &Element{Kind: KindSection, ID: "spec", Label: spec.Name}, false, nil
+	case "description":
+		body, err := readCharDataOnly(dec, "description")
+		if err != nil {
+			return nil, false, err
+		}
+		return &Element{Kind: KindSection, ID: "description", Text: body}, true, nil
+	case "definitions":
+		return &Element{Kind: KindSection, ID: "definitions", Label: "Definitions"}, false, nil
+	case "term":
+		var textAttr string
+		for _, attr := range t.Attr {
+			if attr.Name.Local == "text" {
+				textAttr = attr.Value
+			}
+		}
+		body, err := readCharDataOnly(dec, "term")
+		if err != nil {
+			return nil, false, err
+		}
+		inDefs := parent != nil && parent.ID == "definitions"
+		return &Element{Kind: KindTerm, ID: textAttr, Text: body, InDefinitions: inDefs}, true, nil
+	case "section":
+		id := attrString(t, "id")
+		label := attrString(t, "label")
+		return &Element{Kind: KindSection, ID: id, Label: label}, false, nil
+	case "clause":
+		id := attrString(t, "id")
+		body, err := readCharDataOnly(dec, "clause")
+		if err != nil {
+			return nil, false, err
+		}
+		return &Element{Kind: KindClause, ID: id, Text: body}, true, nil
+	}
+	return nil, false, fmt.Errorf("unexpected element: %s", t.Name.Local)
+}
+
+func attrString(t xml.StartElement, name string) string {
+	for _, attr := range t.Attr {
+		if attr.Name.Local == name {
+			return attr.Value
+		}
+	}
+	return ""
+}
+
+func readCharDataOnly(dec *xml.Decoder, endName string) (string, error) {
+	var buf strings.Builder
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			return "", fmt.Errorf("unexpected nested element %s inside %s", t.Name.Local, endName)
+		case xml.EndElement:
+			if t.Name.Local != endName {
+				return "", fmt.Errorf("unexpected end element %s", t.Name.Local)
+			}
+			return buf.String(), nil
+		case xml.CharData:
+			buf.Write(t)
+		}
+	}
+}
+
+func validate(spec *Spec, out *[]Violation) {
+	checkDescriptionIgnored(spec, out)
+	checkPathGroup(spec, out)
+	checkNoForwardRefs(spec, out)
+	checkNoSelfReferences(spec, out)
+	checkNoCycles(spec, out)
+	checkNoTextOnSections(spec, out)
+	checkNoEmptyClauses(spec, out)
+	checkNoEmptySections(spec, out)
+	checkNoEmptyTerms(spec, out)
+	checkUniqueIDs(spec, out)
+	checkValidIDFormat(spec, out)
+	checkSingleDefinitions(spec, out)
+	checkTermsInDefinitions(spec, out)
+}
+
+func checkDescriptionIgnored(spec *Spec, out *[]Violation) {
+	count := 0
+	var walk func(e *Element)
+	walk = func(e *Element) {
+		if e.Kind == KindSection && e.ID == "description" {
+			count++
+		}
+		for _, k := range e.Kids {
+			walk(k)
+		}
+	}
+	for _, e := range spec.Elements {
+		walk(e)
+	}
+	if count > 1 {
+		*out = append(*out, Violation{"parser_rules.description_ignored", "description element appears more than once"})
+	}
+}
+
+func checkPathGroup(spec *Spec, out *[]Violation) {
+	var walk func(parent *Element, e *Element)
+	walk = func(parent *Element, e *Element) {
+		if parent != nil && parent.ID != "spec" && parent.ID != "definitions" && parent.ID != "description" {
+			expected := parent.ID + "." + lastSegment(e.ID)
+			if e.ID != expected {
+				*out = append(*out, Violation{"parser_rules.path_group", fmt.Sprintf("%s: id is %q, expected %q", e.ID, e.ID, expected)})
+			}
+		}
+		for _, k := range e.Kids {
+			walk(e, k)
+		}
+	}
+	for _, e := range spec.Elements {
+		walk(nil, e)
+	}
+}
+
+func lastSegment(id string) string {
+	if idx := strings.LastIndex(id, "."); idx >= 0 {
+		return id[idx+1:]
+	}
+	return id
+}
+
+func checkNoForwardRefs(spec *Spec, out *[]Violation) {
+	defined := spec.DefinedIDs()
+	order := make(map[string]int)
+	i := 0
+	var walk func(e *Element)
+	walk = func(e *Element) {
+		if isStructural(e) {
+			for _, k := range e.Kids {
+				walk(k)
+			}
+			return
+		}
+		order[e.ID] = i
+		i++
+		for _, k := range e.Kids {
+			walk(k)
+		}
+	}
+	for _, e := range spec.Elements {
+		walk(e)
+	}
+	for _, e := range spec.All() {
+		if e.Kind == KindSection {
+			continue
+		}
+		refs := ReferencesInOrder(e, defined)
+		for _, r := range refs {
+			if order[r] >= order[e.ID] {
+				*out = append(*out, Violation{"parser_rules.no_forward_refs", fmt.Sprintf("%s cites %s which is not defined earlier", e.ID, r)})
+			}
+		}
+	}
+}
+
+func checkNoSelfReferences(spec *Spec, out *[]Violation) {
+	defined := spec.DefinedIDs()
+	for _, e := range spec.All() {
+		if e.Kind == KindSection {
+			continue
+		}
+		refs := ReferencesInOrder(e, defined)
+		for _, r := range refs {
+			if r == e.ID {
+				*out = append(*out, Violation{"parser_rules.no_self_references", fmt.Sprintf("%s cites itself", e.ID)})
+			}
+		}
+	}
+}
+
+func checkNoCycles(spec *Spec, out *[]Violation) {
+	defined := spec.DefinedIDs()
+	graph := make(map[string][]string)
+	for _, e := range spec.All() {
+		if e.Kind == KindSection {
+			continue
+		}
+		for _, r := range ReferencesInOrder(e, defined) {
+			graph[e.ID] = append(graph[e.ID], r)
+		}
+	}
+	const (
+		white = 0
+		gray  = 1
+		black = 2
+	)
+	color := make(map[string]int)
+	for n := range graph {
+		color[n] = white
+	}
+	var dfs func(n string) bool
+	dfs = func(n string) bool {
+		color[n] = gray
+		for _, m := range graph[n] {
+			if color[m] == gray {
+				return true
+			}
+			if color[m] == white && dfs(m) {
+				return true
+			}
+		}
+		color[n] = black
+		return false
+	}
+	for n := range graph {
+		if color[n] == white && dfs(n) {
+			*out = append(*out, Violation{"parser_rules.no_cycles", "reference graph contains a cycle"})
+			return
+		}
+	}
+}
+
+func checkNoTextOnSections(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if isStructural(e) {
+			continue
+		}
+		if e.Kind == KindSection && e.HasText() {
+			*out = append(*out, Violation{"parser_rules.no_text_on_sections", fmt.Sprintf("section %s has non-whitespace text content", e.ID)})
+		}
+	}
+}
+
+func checkNoEmptyClauses(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if e.Kind == KindClause && !e.HasText() {
+			*out = append(*out, Violation{"parser_rules.no_empty_clauses", fmt.Sprintf("clause %s has no text content", e.ID)})
+		}
+	}
+}
+
+func checkNoEmptySections(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if isStructural(e) {
+			continue
+		}
+		if e.Kind == KindSection && len(e.Kids) == 0 {
+			*out = append(*out, Violation{"parser_rules.no_empty_sections", fmt.Sprintf("section %s has no sub-elements", e.ID)})
+		}
+	}
+}
+
+func checkNoEmptyTerms(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if e.Kind == KindTerm && !e.HasText() {
+			*out = append(*out, Violation{"parser_rules.no_empty_terms", fmt.Sprintf("term %s has no text content", e.ID)})
+		}
+	}
+}
+
+func checkUniqueIDs(spec *Spec, out *[]Violation) {
+	seen := make(map[string]int)
+	for _, e := range spec.All() {
+		seen[e.ID]++
+	}
+	for id, n := range seen {
+		if n > 1 {
+			*out = append(*out, Violation{"parser_rules.unique_ids", fmt.Sprintf("id %q appears %d times", id, n)})
+		}
+	}
+}
+
+func checkValidIDFormat(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if isStructural(e) {
+			continue
+		}
+		if !idPattern.MatchString(e.ID) {
+			*out = append(*out, Violation{"parser_rules.valid_id_format", fmt.Sprintf("id %q does not match [a-z0-9_]+ per segment", e.ID)})
+		}
+	}
+}
+
+func checkSingleDefinitions(spec *Spec, out *[]Violation) {
+	count := 0
+	var walk func(e *Element)
+	walk = func(e *Element) {
+		if e.Kind == KindSection && e.ID == "definitions" {
+			count++
+		}
+		for _, k := range e.Kids {
+			walk(k)
+		}
+	}
+	for _, e := range spec.Elements {
+		walk(e)
+	}
+	if count > 1 {
+		*out = append(*out, Violation{"parser_rules.single_definitions", "definitions block appears more than once"})
+	}
+}
+
+func checkTermsInDefinitions(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		if e.Kind == KindTerm && !e.InDefinitions {
+			*out = append(*out, Violation{"parser_rules.terms_in_definitions", fmt.Sprintf("term %s appears outside a definitions block", e.ID)})
+		}
+	}
+}

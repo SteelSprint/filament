@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<spec name="f11_term_self_reference">
+
+  <definitions>
+    <term text="loopy">INVALID: the word loopy appears in this term's text, creating a self-reference.</term>
+  </definitions>
+
+  <clause id="1">A regular leaf clause.</clause>
+
+</spec>

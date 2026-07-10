@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<spec name="f12_term_term_cycle">
+
+  <definitions>
+    <term text="alpha">The first term cites beta.</term>
+    <term text="beta">INVALID: this term cites alpha, forming a cycle of length 2.</term>
+  </definitions>
+
+  <clause id="1">A regular leaf clause.</clause>
+
+</spec>

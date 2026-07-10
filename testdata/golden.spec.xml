@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<spec name="golden">
+
+  <clause id="x">a</clause>
+  <clause id="y">b cites x.</clause>
+  <clause id="z">c cites y and x.</clause>
+
+</spec>
