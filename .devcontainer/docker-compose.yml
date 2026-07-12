@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 volumes:
   postgres-data:
@@ -6,18 +6,18 @@ volumes:
 
 services:
   app:
-    container_name: steelsprint-framework
+    container_name: filament
     build:
       context: .
       dockerfile: Dockerfile
     labels:
-      - steelsprint-framework.role=devcontainer
+      - filament.role=devcontainer
     env_file:
-       # Ensure that the variables in .env match the same variables in devcontainer.json
-       - .env
+      # Ensure that the variables in .env match the same variables in devcontainer.json
+      - .env
 
     volumes:
-      - ..:/workspaces/steelsprint-framework:cached
+      - ..:/workspaces/filament:cached
       # Persists opencode auth.json (API keys), opencode.db, logs across rebuilds.
       - opencode-data:/home/vscode/.local/share/opencode
 
@@ -26,7 +26,7 @@ services:
 
     # Runs app on the same network as the database container, allows "forwardPorts" in devcontainer.json function.
     network_mode: service:db
-    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally. 
+    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
 
   db:
