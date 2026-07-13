@@ -190,10 +190,8 @@ func runStatus(specPath string, paths []string, quiet bool) error {
 
 	lockPath := LockFilePath(specPath)
 	lock, err := ReadLockFile(lockPath)
-	lockMissing := false
 	if err != nil {
 		if os.IsNotExist(err) {
-			lockMissing = true
 			lock = NewLockFile()
 		} else {
 			return err
@@ -204,17 +202,24 @@ func runStatus(specPath string, paths []string, quiet bool) error {
 		paths = []string{"."}
 	}
 
-	files, err := WalkPaths(paths)
+	windowSize := defaultContentWindow
+	findings, err := Check(spec, lock, paths, windowSize)
 	if err != nil {
 		return err
 	}
 
-	specHashes := ComputeAllHashes(spec)
-	windowSize := defaultContentWindow
+	// Build set of marker IDs that have findings
+	markersWithFindings := make(map[string]bool)
+	for _, f := range findings {
+		if f.MarkerID != "" {
+			markersWithFindings[f.MarkerID] = true
+		}
+	}
 
-	if lockMissing {
-		fmt.Println("No .filament file found. Run 'filament init' to create one.")
-		fmt.Println()
+	// Walk files and print status for each marker
+	files, err := WalkPaths(paths)
+	if err != nil {
+		return err
 	}
 
 	var markerCount int
@@ -225,43 +230,111 @@ func runStatus(specPath string, paths []string, quiet bool) error {
 		}
 		for _, m := range markers {
 			markerCount++
-			status := "OK"
-
-			// Check spec drift
-			for _, cid := range m.ClauseIDs {
-				stateKey := m.MarkerID + ":" + cid
-				reviewedHash, inState := lock.State[stateKey]
-				if inState {
-					currentHash := specHashes[cid]
-					if reviewedHash != currentHash {
-						status = "SPEC_DRIFT"
-					}
-				} else {
-					status = "NOT_IN_STATE"
-				}
-			}
-
-			// Check site drift
-			if status == "OK" {
-				contentHash, err := ComputeContentHash(f, m.Line, windowSize)
-				if err == nil {
-					storedHash, inSite := lock.Site[m.MarkerID]
-					if inSite && contentHash != storedHash {
-						status = "SITE_DRIFT"
-					} else if !inSite {
-						status = "NOT_IN_STATE"
+			if markersWithFindings[m.MarkerID] {
+				// Print the finding(s) for this marker
+				for _, finding := range findings {
+					if finding.MarkerID == m.MarkerID {
+						fmt.Fprintln(os.Stderr, FormatFinding(finding))
+						fmt.Fprintln(os.Stderr)
 					}
 				}
+			} else {
+				fmt.Println(FormatStatusResult(m.MarkerID, m.ClauseIDs, f, m.Line, "OK"))
 			}
-
-			fmt.Println(FormatStatusResult(m.MarkerID, m.ClauseIDs, f, m.Line, status))
 		}
 	}
 
-	if markerCount == 0 {
-		fmt.Println("No markers found in scanned files.")
+	// Print non-marker findings (MISSING, STATE_FILE_MISSING)
+	for _, f := range findings {
+		if f.MarkerID == "" {
+			fmt.Fprintln(os.Stderr, FormatFinding(f))
+			fmt.Fprintln(os.Stderr)
+		}
 	}
 
+	// Print coverage summary
+	defined := spec.DefinedIDs()
+	totalClauses := 0
+	for _, e := range spec.All() {
+		if e.Kind == KindClause && defined[e.ID] {
+			totalClauses++
+		}
+	}
+
+	// Count directly markered clauses
+	referenced := make(map[string]bool)
+	for _, f := range files {
+		markers, _ := ScanMarkers(f)
+		for _, m := range markers {
+			for _, cid := range m.ClauseIDs {
+				if defined[cid] {
+					referenced[cid] = true
+				}
+			}
+		}
+	}
+
+	// Count transitively covered clauses
+	refsGraph := make(map[string][]string)
+	for _, e := range spec.All() {
+		if e.Kind == KindSection {
+			continue
+		}
+		refsGraph[e.ID] = ReferencesInOrder(e, defined)
+	}
+	covered := make(map[string]bool)
+	for cid := range referenced {
+		covered[cid] = true
+	}
+	var queue []string
+	for cid := range covered {
+		queue = append(queue, cid)
+	}
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+		for _, r := range refsGraph[curr] {
+			if !covered[r] {
+				covered[r] = true
+				queue = append(queue, r)
+			}
+		}
+	}
+
+	coveredCount := 0
+	for _, e := range spec.All() {
+		if e.Kind == KindClause && defined[e.ID] && covered[e.ID] {
+			coveredCount++
+		}
+	}
+
+	directCount := len(referenced)
+	transitiveCount := coveredCount - directCount
+	uncoveredCount := totalClauses - coveredCount
+
+	fmt.Printf("Coverage: %d/%d clauses covered (%d with markers, %d transitively). %d clauses are uncovered.\n",
+		coveredCount, totalClauses, directCount, transitiveCount, uncoveredCount)
+
+	if uncoveredCount > 0 && !quiet {
+		fmt.Println()
+		fmt.Println("Uncovered clauses are not traced to any implementation. This means")
+		fmt.Println("filament cannot detect drift between the spec's intent and the workspace's")
+		fmt.Println("actual behavior for those clauses. To fix this:")
+		fmt.Println()
+		fmt.Println("  1. Run 'filament check' to see the full list of uncovered clauses.")
+		fmt.Println("  2. For each uncovered clause, find the file location that implements it.")
+		fmt.Println("  3. Run 'filament add <clause_id>' to generate a marker.")
+		fmt.Println("  4. Paste the marker above the relevant content in the file.")
+		fmt.Println("  5. Run 'filament init' (if no state file) or 'filament resolve --site <marker_id>'.")
+		fmt.Println()
+		fmt.Println("A clause is also considered covered if another covered clause or term")
+		fmt.Println("references it via a <ref> element. You may not need a marker for every")
+		fmt.Println("clause — only for leaf implementations that nothing else depends on.")
+	}
+
+	if len(findings) > 0 {
+		return fmt.Errorf("found %d finding(s)", len(findings))
+	}
 	return nil
 }
 
