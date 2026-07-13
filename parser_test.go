@@ -108,6 +108,14 @@ func TestParserRules_SingleDefinitions(t *testing.T) {
 	assertViolations(t, invalidCase("f14_single_definitions.spec.xml"))
 }
 
+func TestParserRules_RefTargetUndefined(t *testing.T) {
+	assertViolations(t, invalidCase("f14_ref_target_undefined.spec.xml"))
+}
+
+func TestParserRules_TermRefsTerms(t *testing.T) {
+	assertViolations(t, invalidCase("f15_term_refs_clause.spec.xml"))
+}
+
 func TestValidSpecs(t *testing.T) {
 	assertClean(t, validCase("simple.spec.xml"))
 	assertClean(t, validCase("nested.spec.xml"))

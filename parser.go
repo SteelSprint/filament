@@ -142,23 +142,23 @@ func parseStartElement(t xml.StartElement, dec *xml.Decoder, parent *Element, sp
 				textAttr = attr.Value
 			}
 		}
-		body, err := readCharDataOnly(dec, "term")
+		body, refs, err := readClauseBody(dec, "term")
 		if err != nil {
 			return nil, false, err
 		}
 		inDefs := parent != nil && parent.ID == "definitions"
-		return &Element{Kind: KindTerm, ID: textAttr, Text: body, InDefinitions: inDefs}, true, nil
+		return &Element{Kind: KindTerm, ID: textAttr, Text: body, Refs: refs, InDefinitions: inDefs}, true, nil
 	case "section":
 		id := attrString(t, "id")
 		label := attrString(t, "label")
 		return &Element{Kind: KindSection, ID: id, Label: label}, false, nil
 	case "clause":
 		id := attrString(t, "id")
-		body, err := readCharDataOnly(dec, "clause")
+		body, refs, err := readClauseBody(dec, "clause")
 		if err != nil {
 			return nil, false, err
 		}
-		return &Element{Kind: KindClause, ID: id, Text: body}, true, nil
+		return &Element{Kind: KindClause, ID: id, Text: body, Refs: refs}, true, nil
 	}
 	return nil, false, fmt.Errorf("unexpected element: %s", t.Name.Local)
 }
@@ -193,6 +193,58 @@ func readCharDataOnly(dec *xml.Decoder, endName string) (string, error) {
 	}
 }
 
+func readClauseBody(dec *xml.Decoder, endName string) (string, []string, error) {
+	var buf strings.Builder
+	var refs []string
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", nil, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			if t.Name.Local == "ref" {
+				refBody, err := readRefContent(dec)
+				if err != nil {
+					return "", nil, err
+				}
+				buf.WriteString(refBody)
+				refs = append(refs, refBody)
+			} else {
+				return "", nil, fmt.Errorf("unexpected nested element %s inside %s", t.Name.Local, endName)
+			}
+		case xml.EndElement:
+			if t.Name.Local != endName {
+				return "", nil, fmt.Errorf("unexpected end element %s", t.Name.Local)
+			}
+			return buf.String(), refs, nil
+		case xml.CharData:
+			buf.Write(t)
+		}
+	}
+}
+
+func readRefContent(dec *xml.Decoder) (string, error) {
+	var buf strings.Builder
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			return "", fmt.Errorf("unexpected nested element %s inside ref", t.Name.Local)
+		case xml.EndElement:
+			if t.Name.Local != "ref" {
+				return "", fmt.Errorf("unexpected end element %s", t.Name.Local)
+			}
+			return buf.String(), nil
+		case xml.CharData:
+			buf.Write(t)
+		}
+	}
+}
+
 func validate(spec *Spec, out *[]Violation) {
 	checkDescriptionIgnored(spec, out)
 	checkPathGroup(spec, out)
@@ -207,6 +259,9 @@ func validate(spec *Spec, out *[]Violation) {
 	checkValidIDFormat(spec, out)
 	checkSingleDefinitions(spec, out)
 	checkTermsInDefinitions(spec, out)
+	checkRefContent(spec, out)
+	checkRefTargetUndefined(spec, out)
+	checkTermRefsTerms(spec, out)
 }
 
 func checkDescriptionIgnored(spec *Spec, out *[]Violation) {
@@ -281,7 +336,7 @@ func checkNoForwardRefs(spec *Spec, out *[]Violation) {
 		refs := ReferencesInOrder(e, defined)
 		for _, r := range refs {
 			if order[r] >= order[e.ID] {
-				*out = append(*out, Violation{"parser_rules.no_forward_refs", fmt.Sprintf("%s cites %s which is not defined earlier", e.ID, r)})
+				*out = append(*out, Violation{"parser_rules.no_forward_refs", fmt.Sprintf("%s refs %s which is not defined earlier", e.ID, r)})
 			}
 		}
 	}
@@ -296,7 +351,7 @@ func checkNoSelfReferences(spec *Spec, out *[]Violation) {
 		refs := ReferencesInOrder(e, defined)
 		for _, r := range refs {
 			if r == e.ID {
-				*out = append(*out, Violation{"parser_rules.no_self_references", fmt.Sprintf("%s cites itself", e.ID)})
+				*out = append(*out, Violation{"parser_rules.no_self_references", fmt.Sprintf("%s refs itself", e.ID)})
 			}
 		}
 	}
@@ -428,6 +483,45 @@ func checkTermsInDefinitions(spec *Spec, out *[]Violation) {
 	for _, e := range spec.All() {
 		if e.Kind == KindTerm && !e.InDefinitions {
 			*out = append(*out, Violation{"parser_rules.terms_in_definitions", fmt.Sprintf("term %s appears outside a definitions block", e.ID)})
+		}
+	}
+}
+
+func checkRefContent(spec *Spec, out *[]Violation) {
+	for _, e := range spec.All() {
+		for _, ref := range e.Refs {
+			if ref == "" {
+				*out = append(*out, Violation{"parser_rules.ref_content", fmt.Sprintf("%s has an empty <ref> element", e.ID)})
+			}
+		}
+	}
+}
+
+func checkRefTargetUndefined(spec *Spec, out *[]Violation) {
+	defined := spec.DefinedIDs()
+	for _, e := range spec.All() {
+		for _, ref := range e.Refs {
+			if !defined[ref] {
+				*out = append(*out, Violation{"parser_rules.ref_target_undefined", fmt.Sprintf("%s refs %s which is not a defined id", e.ID, ref)})
+			}
+		}
+	}
+}
+
+func checkTermRefsTerms(spec *Spec, out *[]Violation) {
+	kinds := spec.ElementKinds()
+	for _, e := range spec.All() {
+		if e.Kind != KindTerm {
+			continue
+		}
+		for _, ref := range e.Refs {
+			targetKind, ok := kinds[ref]
+			if !ok {
+				continue // ref_target_undefined will catch this
+			}
+			if targetKind != KindTerm {
+				*out = append(*out, Violation{"parser_rules.term_refs_terms", fmt.Sprintf("term %s refs %s which is a %s, not a term. Terms are vocabulary; clauses are requirements. A term may only reference another term because vocabulary must not depend on requirements — dependencies flow downward (clauses → terms), not upward. Remedy: reword the term to not reference the clause, or move the dependency into a clause instead.", e.ID, ref, targetKind.String())})
+			}
 		}
 	}
 }

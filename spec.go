@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"sort"
 )
 
 // #F id:3aewemki hash.algorithm hash.input.content hash.input.references hash.input.references_order hash.input.whitespace hash.input.separator hash.output.format path_format.structure path_format.charset path_format.depth
@@ -42,6 +41,7 @@ type Element struct {
 	ID            string
 	Label         string
 	Text          string
+	Refs          []string // IDs from <ref> elements, in order of appearance
 	Parent        *Element
 	Kids          []*Element
 	InDefinitions bool
@@ -77,6 +77,14 @@ func (s *Spec) DefinedIDs() map[string]bool {
 			continue
 		}
 		out[e.ID] = true
+	}
+	return out
+}
+
+func (s *Spec) ElementKinds() map[string]ElementKind {
+	out := make(map[string]ElementKind)
+	for _, e := range s.All() {
+		out[e.ID] = e.Kind
 	}
 	return out
 }
@@ -118,78 +126,21 @@ func trimSpace(s string) string {
 	return s[start:end]
 }
 
-type tokenPos struct {
-	offset int
-	tok    string
-}
-
-func isRefChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '.'
-}
-
-func stripTrailingNonID(s string) string {
-	end := len(s)
-	for end > 0 {
-		c := s[end-1]
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' {
-			break
-		}
-		end--
-	}
-	return s[:end]
-}
-
-func findRefTokens(text string) []tokenPos {
-	var out []tokenPos
-	i := 0
-	for i < len(text) {
-		if isRefChar(text[i]) {
-			start := i
-			for i < len(text) && isRefChar(text[i]) {
-				i++
-			}
-			tok := text[start:i]
-			tok = stripTrailingNonID(tok)
-			if tok != "" {
-				out = append(out, tokenPos{start, tok})
-			}
-		} else {
-			i++
-		}
-	}
-	return out
-}
-
 func ReferencesInOrder(e *Element, defined map[string]bool) []string {
 	if e.Kind == KindSection {
 		return nil
 	}
-	tokens := findRefTokens(e.Text)
-	type pos struct {
-		offset int
-		id     string
-	}
-	var found []pos
+	var out []string
 	seen := make(map[string]bool)
-	for _, tp := range tokens {
-		if !defined[tp.tok] {
+	for _, r := range e.Refs {
+		if !defined[r] {
 			continue
 		}
-		if seen[tp.tok] {
+		if seen[r] {
 			continue
 		}
-		seen[tp.tok] = true
-		found = append(found, pos{tp.offset, tp.tok})
-	}
-	sort.SliceStable(found, func(i, j int) bool {
-		if found[i].offset != found[j].offset {
-			return found[i].offset < found[j].offset
-		}
-		return found[i].id < found[j].id
-	})
-	out := make([]string, 0, len(found))
-	for _, p := range found {
-		out = append(out, p.id)
+		seen[r] = true
+		out = append(out, r)
 	}
 	return out
 }

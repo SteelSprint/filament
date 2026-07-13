@@ -2,9 +2,9 @@
 <spec name="f13_term_clause_cycle">
 
   <definitions>
-    <term text="external">A term that cites 1.</term>
+    <term text="external">A term that refs <ref>1</ref>.</term>
   </definitions>
 
-  <clause id="1">INVALID: this clause cites external, forming a cycle between the term and the clause.</clause>
+  <clause id="1">INVALID: this clause refs <ref>external</ref>, forming a cycle between the term and the clause.</clause>
 
 </spec>

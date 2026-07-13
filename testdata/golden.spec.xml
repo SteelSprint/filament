@@ -2,7 +2,7 @@
 <spec name="golden">
 
   <clause id="x">a</clause>
-  <clause id="y">b cites x.</clause>
-  <clause id="z">c cites y and x.</clause>
+  <clause id="y">b cites <ref>x</ref>.</clause>
+  <clause id="z">c cites <ref>y</ref> and <ref>x</ref>.</clause>
 
 </spec>

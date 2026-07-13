@@ -12,7 +12,7 @@
 
   <section id="hash_format" label="Hash format">
     <clause id="hash_format.encoding">A hash is a lowercase hex string of 64 characters.</clause>
-    <clause id="hash_format.algorithm">The algorithm is SHA-256, applied to public_api.function's content transitively.</clause>
+    <clause id="hash_format.algorithm">The algorithm is SHA-256, applied to <ref>public_api.function</ref>'s content transitively.</clause>
   </section>
 
 </spec>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <spec name="f8_cycle_length_3">
 
-  <clause id="1">This clause cites 2.</clause>
-  <clause id="2">This clause cites 3.</clause>
-  <clause id="3">INVALID: this clause cites 1, completing a cycle.</clause>
+  <clause id="1">This clause refs <ref>2</ref>.</clause>
+  <clause id="2">This clause refs <ref>3</ref>.</clause>
+  <clause id="3">INVALID: this clause refs <ref>1</ref>, completing a cycle.</clause>
 
 </spec>

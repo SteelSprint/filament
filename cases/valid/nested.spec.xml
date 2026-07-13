@@ -7,16 +7,16 @@
 
   <section id="1" label="Top section">
     <clause id="1.1">A leaf clause in section 1.</clause>
-    <clause id="1.2">A second leaf in section 1 that references 1.1.</clause>
+    <clause id="1.2">A second leaf in section 1 that references <ref>1.1</ref>.</clause>
     <section id="1.3" label="Subsection 1.3">
       <clause id="1.3.1">A deeply nested leaf.</clause>
-      <clause id="1.3.2">References 1.3.1 and 1.1.</clause>
+      <clause id="1.3.2">References <ref>1.3.1</ref> and <ref>1.1</ref>.</clause>
     </section>
   </section>
 
   <section id="2" label="Second section">
     <clause id="2.1">A leaf in section 2.</clause>
-    <clause id="2.2">References 2.1 and 1.2.</clause>
+    <clause id="2.2">References <ref>2.1</ref> and <ref>1.2</ref>.</clause>
   </section>
 
 </spec>
