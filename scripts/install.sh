@@ -1,5 +1,7 @@
 #!/bin/bash
 # #F id:s84shvi5 install.scripts install.platform_detection install.version install.checksum install.archive_validation install.no_overwrite install.permissions install.no_temp_cleanup install.install_dir install.path_check install.network_security install.errors
+# #F id:ws7j2yhv tool.binary
+# #F id:xr2m4kqt tool.location
 set -eu
 set -o pipefail
 set -u

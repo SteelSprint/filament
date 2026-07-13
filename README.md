@@ -187,7 +187,7 @@ The LLM shows the CI step: `filament check` (exit 0 = pass, exit 1
 | Command | Description |
 |---------|-------------|
 | `check [paths]` | Verify all markers are in sync. Exit 1 on drift. |
-| `status [paths]` | Show every marker and its state. Exit 0 always. |
+| `status [paths]` | Show every marker and its state. Exits 1 on drift. |
 | `init [paths]` | Create `.filament` state file. |
 | `add <clauses>` | Print `#F` marker line with a new marker id. |
 | `resolve --spec <ids>` | Clear spec drift for given markers. |

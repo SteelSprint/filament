@@ -146,6 +146,7 @@ func TestCLI_SkillQuiet(t *testing.T) {
 	}
 }
 
+// #F id:ocwydxem self_hosting.test
 func TestCLISelfHosting(t *testing.T) {
 	binary := buildBinary(t)
 
@@ -166,8 +167,7 @@ func TestCLISelfHosting(t *testing.T) {
 	fixtureContent := "package filament_test\n\n// " + markerDir + " id:selfhos1 tool.name public_api.subcommands path_format.structure\nfunc ExampleSelfHost() {\n\t_ = \"self-hosting test\"\n}\n"
 	os.WriteFile(fixture, []byte(fixtureContent), 0644)
 
-	// Build file list: fixture + source files + spec_coverage (skip test files
-	// — they contain marker patterns as test data, not real markers)
+	// Build file list: fixture + source files + docs + test with real markers
 	filamentDir, _ := filepath.Abs(".")
 	fileList := []string{
 		filepath.Join(dir, "selftest.go"),
@@ -181,6 +181,8 @@ func TestCLISelfHosting(t *testing.T) {
 		filepath.Join(filamentDir, "lock.go"),
 		filepath.Join(filamentDir, "site.go"),
 		filepath.Join(filamentDir, "doctor.go"),
+		filepath.Join(filamentDir, "cli_test.go"),
+		filepath.Join(filamentDir, "CONTRIBUTING.md"),
 		filepath.Join(filamentDir, "scripts", "install.sh"),
 		filepath.Join(filamentDir, "scripts", "install.ps1"),
 	}

@@ -104,8 +104,8 @@ Multiple markers give you granular drift detection:
 ```
   spec clause: tool.binary
 
-  install.sh:9     #F id:abc12345 tool.binary    ← BINARY="filament"
-  main.go:33       #F id:def67890 tool.binary    ← const usage = "filament ..."
+  install.sh:9     # F id:abc12345 tool.binary    ← BINARY="filament"
+  main.go:33       # F id:def67890 tool.binary    ← const usage = "filament ..."
 ```
 
 Without multiple markers, a change to `install.sh` would be invisible if the only marker were in `main.go`. With multiple markers, each implementation site is independently tracked.

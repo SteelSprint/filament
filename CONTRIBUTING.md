@@ -9,6 +9,8 @@
 
 ## Development workflow
 
+<!-- #F id:8tf919gk versioning.source -->
+
 filament follows a spec-first workflow:
 
 1. **Spec first** — Edit `filament.spec.xml` to describe the new behavior
@@ -28,6 +30,8 @@ go test ./...
 ## Self-hosting
 
 filament dogfoods itself. The spec, code, tests, and docs all use #F markers that trace to `filament.spec.xml`. Run `filament check` to verify the project is self-consistent.
+
+<!-- #F id:cdi0ftqy versioning.amendments -->
 
 ## Pull requests
 

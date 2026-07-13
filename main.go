@@ -1,5 +1,6 @@
 package main
 
+// #F id:qm5t9xkj tool.design
 import (
 	"fmt"
 	"os"
@@ -7,13 +8,7 @@ import (
 	"strings"
 )
 
-// #F id:xr2m4kqt tool.location
 // #F id:lp8n3vwb tool.language
-// #F id:qm5t9xkj tool.design
-// #F id:ws7j2yhv tool.binary
-// #F id:8tf919gk versioning.source
-// #F id:cdi0ftqy versioning.amendments
-// #F id:ocwydxem self_hosting.test
 
 func printViolations(violations []Violation, quiet bool) {
 	for _, v := range violations {

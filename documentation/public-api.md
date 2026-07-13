@@ -34,7 +34,7 @@ Checks performed:
 filament status [file-or-dir]...
 ```
 
-Show every marker and its drift state. Always exits 0. Use this to orient yourself before making changes.
+Show every marker and its drift state, including OK markers. Detects every condition that check detects. Prints a coverage summary stating how many clauses have markers and how many do not. Exits 1 if any finding is found, 0 otherwise.
 
 ## init
 
@@ -44,7 +44,7 @@ Show every marker and its drift state. Always exits 0. Use this to orient yourse
 filament init [file-or-dir]...
 ```
 
-Create `.filament` from the current spec and source markers. Computes all spec hashes, scans all markers, computes content hashes, and writes the state file with all three sections populated.
+Create `.filament` from the current spec and source markers. If `.filament` already exists, prints an error and exits 1 to prevent destroying review state. Otherwise computes all spec hashes, scans all markers, computes content hashes, and writes the state file with all three sections populated.
 
 ## add
 
