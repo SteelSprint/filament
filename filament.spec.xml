@@ -54,7 +54,7 @@
     <section id="hash.input" label="Hash input">
       <clause id="hash.input.content">The content of a clause or term is the text. The content of a section is the value of the section's label attribute.</clause>
       <clause id="hash.input.references">The references are the hash_outputs of every clause, section, or term referenced by ref elements inside this clause or term. Sections have no references because they have no text content.</clause>
-      <clause id="hash.input.references_order">The references appear in the order their reference tokens first appear in the clause's or term's text, left to right; tokens with the same first-occurrence position are ordered by lexical comparison of the cited id.</clause>
+      <clause id="hash.input.references_order">The references appear in the order their ref elements first appear in the clause's or term's text, left to right. Duplicate references are included only once, at the position of their first appearance.</clause>
       <clause id="hash.input.whitespace">Leading and trailing whitespace of the content are trimmed before it is joined.</clause>
       <clause id="hash.input.separator">A single separator byte is placed between the content and the first reference, and between each pair of consecutive references.</clause>
     </section>
