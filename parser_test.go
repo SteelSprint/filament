@@ -116,10 +116,16 @@ func TestParserRules_TermRefsTerms(t *testing.T) {
 	assertViolations(t, invalidCase("f15_term_refs_clause.spec.xml"))
 }
 
+func TestParserRules_RefContent(t *testing.T) {
+	assertViolations(t, invalidCase("f16_empty_ref.spec.xml"))
+}
+
 func TestValidSpecs(t *testing.T) {
 	assertClean(t, validCase("simple.spec.xml"))
 	assertClean(t, validCase("nested.spec.xml"))
 	assertClean(t, validCase("alphabetic.spec.xml"))
+	assertClean(t, validCase("nested_refs.spec.xml"))
+	assertClean(t, validCase("duplicate_refs.spec.xml"))
 }
 
 func TestMainSpec(t *testing.T) {
