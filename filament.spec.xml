@@ -23,7 +23,7 @@
     <term text="marker_id">An 8-character identifier for a marker site, composed of lowercase letters (a-z) and digits (0-9), generated using a cryptographically secure random source.</term>
     <term text="well_formed_marker">A marker whose marker_id is exactly 8 characters of [a-z0-9], followed by one or more whitespace-separated clause_ids that are defined ids in the spec.</term>
     <term text="malformed_marker">A marker that is not a well_formed_marker.</term>
-    <term text="content_window">The N lines immediately after a marker line in a text file. N defaults to 10 and is configurable.</term>
+    <term text="content_window">The 10 lines immediately after a marker line in a text file.</term>
     <term text="content_hash">SHA-256 of the normalized content_window of a marker, hex-encoded as 64 lowercase hex characters.</term>
     <term text="reviewed_spec_hash">The hex string stored per marker-clause pair in the state file, representing the clause digest at the time the marker was last reviewed against that clause.</term>
     <term text="spec_drift">A marker whose reviewed_spec_hash does not match the current clause digest for a clause it references. This condition means the clause changed since the marker was last reviewed.</term>
@@ -67,7 +67,7 @@
     <clause id="marker_format.syntax">A well_formed_marker is a line containing the following elements in order: the substring #F, whitespace, the literal id:, a marker_id, whitespace, and one or more clause_ids separated by whitespace. The line MAY contain the literal -- followed by whitespace-separated key=value pairs after the clause_ids.</clause>
     <clause id="marker_format.id_format">The marker_id MUST be exactly 8 characters long. Each character MUST be a lowercase letter (a-z) or a digit (0-9).</clause>
     <clause id="marker_format.id_generation">The tool MUST generate marker_ids using a cryptographically secure random source. The tool MUST verify that the generated marker_id is not already used by any marker in the workspace. If a collision is detected, the tool MUST regenerate the marker_id.</clause>
-    <clause id="marker_format.content_window">The content hash MUST be computed from the N lines immediately after the marker line. N MUST default to 10. N MUST be configurable via a command-line flag. If fewer than N lines remain in the file, the tool MUST hash all remaining lines. If the marker is the last line in the file, the content hash MUST be the hash of an empty string.</clause>
+    <clause id="marker_format.content_window">The content hash MUST be computed from the 10 lines immediately after the marker line. If fewer than 10 lines remain in the file, the tool MUST hash all remaining lines. If the marker is the last line in the file, the content hash MUST be the hash of an empty string.</clause>
     <clause id="marker_format.content_normalization">Before computing the content hash, each line MUST have trailing whitespace trimmed. Line endings MUST be normalized to \n. Two or more consecutive blank lines MUST be collapsed to a single blank line.</clause>
     <clause id="marker_format.comment_prefix">The tool MUST match the #F directive regardless of the comment character that precedes it. The tool MUST match the directive as a substring, not the comment prefix.</clause>
     <clause id="marker_format.malformed">A line that matches the pattern #F followed by whitespace and id: but does not conform to the well_formed_marker syntax MUST be reported as a malformed_marker.</clause>

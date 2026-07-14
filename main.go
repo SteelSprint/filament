@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -815,18 +814,4 @@ func runSkill(quiet bool) error {
 
 	fmt.Print(SkillText)
 	return nil
-}
-
-// windowSizeFromEnv reads the content window size from the environment,
-// falling back to defaultContentWindow.
-func windowSizeFromEnv() int {
-	s := os.Getenv("FILAMENT_WINDOW_SIZE")
-	if s == "" {
-		return defaultContentWindow
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return defaultContentWindow
-	}
-	return n
 }
