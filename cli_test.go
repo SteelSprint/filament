@@ -1,6 +1,7 @@
 package driftpin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -303,6 +304,364 @@ func a() {}
 		output, code := Run([]string{"link", "m1:s1"}, dir)
 		if code == 0 {
 			t.Fatalf("expected non-zero exit code, got 0, output: %s", output)
+		}
+	})
+}
+
+func assertTodoCountInOutput(t *testing.T, output string, want int) {
+	t.Helper()
+	if want == 0 {
+		if output != "No changes detected." {
+			t.Fatalf("output = %q, want %q", output, "No changes detected.")
+		}
+		return
+	}
+	if !strings.Contains(output, fmt.Sprintf("%d. [TODO]", want)) {
+		t.Fatalf("output should contain %d todo items, got: %s", want, output)
+	}
+	lines := strings.Count(output, "[TODO]")
+	if lines != want {
+		t.Fatalf("output contains %d [TODO] entries, want %d, output: %s", lines, want, output)
+	}
+}
+
+func assertPinResolutionCount(t *testing.T, dir string, want int) {
+	t.Helper()
+	store := NewFilePinStore(dir)
+	state, err := store.Load()
+	assertNoError(t, err)
+	if len(state.ResolutionState) != want {
+		t.Fatalf("resolution state count = %d, want %d", len(state.ResolutionState), want)
+	}
+}
+
+func TestCLIManyToManyOneSpecManyMarkers(t *testing.T) {
+	t.Run("1_spec_2_markers_full_cycle", func(t *testing.T) {
+		dir := t.TempDir()
+		Run([]string{"init"}, dir)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs><spec id="auth_token_expiry">token must expire</spec></specs>`)
+		writeCodeFile(t, dir, "middleware.go", `// #F m1
+func authMiddleware() {
+	checkExpiry()
+}
+`)
+		writeCodeFile(t, dir, "login.go", `// #F m2
+func loginHandler() {
+	checkExpiry()
+}
+`)
+
+		Run([]string{"todo"}, dir)
+		Run([]string{"link", "m1:auth_token_expiry"}, dir)
+		Run([]string{"link", "m2:auth_token_expiry"}, dir)
+
+		output, code := Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs><spec id="auth_token_expiry">token must expire within 24 hours</spec></specs>`)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 2)
+
+		_, code = Run([]string{"reset", "m1:auth_token_expiry"}, dir)
+		if code != 0 {
+			t.Fatalf("reset m1 failed")
+		}
+		assertPinResolutionCount(t, dir, 1)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 1)
+
+		_, code = Run([]string{"reset", "m2:auth_token_expiry"}, dir)
+		if code != 0 {
+			t.Fatalf("reset m2 failed")
+		}
+		assertPinResolutionCount(t, dir, 0)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+	})
+}
+
+func TestCLIManyToManyOneMarkerManySpecs(t *testing.T) {
+	t.Run("2_specs_1_marker_full_cycle", func(t *testing.T) {
+		dir := t.TempDir()
+		Run([]string{"init"}, dir)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs>
+			<spec id="validate_file_size">file size must be validated</spec>
+			<spec id="scan_for_malware">files must be scanned for malware</spec>
+		</specs>`)
+		writeCodeFile(t, dir, "upload.go", `// #F m1
+func uploadHandler() {
+	validateAndScan()
+}
+`)
+
+		Run([]string{"todo"}, dir)
+		Run([]string{"link", "m1:validate_file_size"}, dir)
+		Run([]string{"link", "m1:scan_for_malware"}, dir)
+
+		output, code := Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+
+		writeCodeFile(t, dir, "upload.go", `// #F m1
+func uploadHandler() {
+	// forgot to validate!
+	upload()
+}
+`)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 2)
+
+		_, code = Run([]string{"reset", "m1:validate_file_size"}, dir)
+		if code != 0 {
+			t.Fatalf("reset validate_file_size failed")
+		}
+		assertPinResolutionCount(t, dir, 1)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 1)
+
+		_, code = Run([]string{"reset", "m1:scan_for_malware"}, dir)
+		if code != 0 {
+			t.Fatalf("reset scan_for_malware failed")
+		}
+		assertPinResolutionCount(t, dir, 0)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+	})
+}
+
+func TestCLIManyToManyTwoByTwo(t *testing.T) {
+	t.Run("2_specs_2_markers_4_edges_full_cycle", func(t *testing.T) {
+		dir := t.TempDir()
+		Run([]string{"init"}, dir)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs>
+			<spec id="rate_limit_per_user">per-user rate limiting required</spec>
+			<spec id="log_rate_limit_hits">rate limit hits must be logged</spec>
+		</specs>`)
+		writeCodeFile(t, dir, "middleware.go", `// #F m1
+func rateLimitMiddleware() {
+	limit()
+}
+`)
+		writeCodeFile(t, dir, "handler.go", `// #F m2
+func requestHandler() {
+	handle()
+}
+`)
+
+		Run([]string{"todo"}, dir)
+		Run([]string{"link", "m1:rate_limit_per_user"}, dir)
+		Run([]string{"link", "m1:log_rate_limit_hits"}, dir)
+		Run([]string{"link", "m2:rate_limit_per_user"}, dir)
+		Run([]string{"link", "m2:log_rate_limit_hits"}, dir)
+
+		output, code := Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs>
+			<spec id="rate_limit_per_user">per-user rate limiting required with 100 req/min</spec>
+			<spec id="log_rate_limit_hits">rate limit hits must be logged to syslog</spec>
+		</specs>`)
+		writeCodeFile(t, dir, "middleware.go", `// #F m1
+func rateLimitMiddleware() {
+	limitV2()
+}
+`)
+		writeCodeFile(t, dir, "handler.go", `// #F m2
+func requestHandler() {
+	handleV2()
+}
+`)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 4)
+
+		_, code = Run([]string{"reset", "m1:rate_limit_per_user"}, dir)
+		if code != 0 {
+			t.Fatalf("reset 1 failed")
+		}
+		assertPinResolutionCount(t, dir, 1)
+		output, _ = Run([]string{"todo"}, dir)
+		assertTodoCountInOutput(t, output, 3)
+
+		_, code = Run([]string{"reset", "m1:log_rate_limit_hits"}, dir)
+		if code != 0 {
+			t.Fatalf("reset 2 failed")
+		}
+		assertPinResolutionCount(t, dir, 2)
+		output, _ = Run([]string{"todo"}, dir)
+		assertTodoCountInOutput(t, output, 2)
+
+		_, code = Run([]string{"reset", "m2:rate_limit_per_user"}, dir)
+		if code != 0 {
+			t.Fatalf("reset 3 failed")
+		}
+		assertPinResolutionCount(t, dir, 2)
+		output, _ = Run([]string{"todo"}, dir)
+		assertTodoCountInOutput(t, output, 1)
+
+		_, code = Run([]string{"reset", "m2:log_rate_limit_hits"}, dir)
+		if code != 0 {
+			t.Fatalf("reset 4 failed")
+		}
+		assertPinResolutionCount(t, dir, 0)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+	})
+}
+
+func TestCLIManyToManyThreeByThree(t *testing.T) {
+	t.Run("3_specs_3_markers_9_edges_partial_then_full_collapse", func(t *testing.T) {
+		dir := t.TempDir()
+		Run([]string{"init"}, dir)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs>
+			<spec id="validate_amount">amount must be validated</spec>
+			<spec id="check_fraud_rules">fraud rules must be checked</spec>
+			<spec id="log_transaction">transactions must be logged</spec>
+		</specs>`)
+		writeCodeFile(t, dir, "card.go", `// #F m1
+func cardHandler() {
+	processCard()
+}
+`)
+		writeCodeFile(t, dir, "bank.go", `// #F m2
+func bankTransferHandler() {
+	processBank()
+}
+`)
+		writeCodeFile(t, dir, "wallet.go", `// #F m3
+func walletHandler() {
+	processWallet()
+}
+`)
+
+		Run([]string{"todo"}, dir)
+
+		links := []string{
+			"m1:validate_amount", "m1:check_fraud_rules", "m1:log_transaction",
+			"m2:validate_amount", "m2:check_fraud_rules", "m2:log_transaction",
+			"m3:validate_amount", "m3:check_fraud_rules", "m3:log_transaction",
+		}
+		for _, link := range links {
+			_, code := Run([]string{"link", link}, dir)
+			if code != 0 {
+				t.Fatalf("link %s failed", link)
+			}
+		}
+
+		output, code := Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+
+		writeSpecFile(t, dir, "specs.pin.xml", `<specs>
+			<spec id="validate_amount">amount must be validated and positive</spec>
+			<spec id="check_fraud_rules">fraud rules must be checked with ML model</spec>
+			<spec id="log_transaction">transactions must be logged with audit trail</spec>
+		</specs>`)
+		writeCodeFile(t, dir, "card.go", `// #F m1
+func cardHandler() {
+	processCardV2()
+}
+`)
+		writeCodeFile(t, dir, "bank.go", `// #F m2
+func bankTransferHandler() {
+	processBankV2()
+}
+`)
+		writeCodeFile(t, dir, "wallet.go", `// #F m3
+func walletHandler() {
+	processWalletV2()
+}
+`)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 9)
+
+		_, code = Run([]string{"reset", "m1:validate_amount"}, dir)
+		if code != 0 {
+			t.Fatalf("reset m1:validate_amount failed")
+		}
+		_, code = Run([]string{"reset", "m2:check_fraud_rules"}, dir)
+		if code != 0 {
+			t.Fatalf("reset m2:check_fraud_rules failed")
+		}
+		assertPinResolutionCount(t, dir, 2)
+
+		output, _ = Run([]string{"todo"}, dir)
+		assertTodoCountInOutput(t, output, 7)
+
+		for _, link := range links {
+			if link == "m1:validate_amount" || link == "m2:check_fraud_rules" {
+				continue
+			}
+			_, code := Run([]string{"reset", link}, dir)
+			if code != 0 {
+				t.Fatalf("reset %s failed", link)
+			}
+		}
+		assertPinResolutionCount(t, dir, 0)
+
+		output, code = Run([]string{"todo"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, output: %s", code, output)
+		}
+		assertTodoCountInOutput(t, output, 0)
+
+		store := NewFilePinStore(dir)
+		state, err := store.Load()
+		assertNoError(t, err)
+		if len(state.Links) != 9 {
+			t.Fatalf("expected 9 links in pin, got %d", len(state.Links))
+		}
+		if len(state.ResolutionState) != 0 {
+			t.Fatalf("expected 0 resolutions after full collapse, got %d", len(state.ResolutionState))
 		}
 	})
 }
