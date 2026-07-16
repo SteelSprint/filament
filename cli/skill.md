@@ -14,7 +14,7 @@ drift skill           # Print this guide (pipe to a file or read into context)
 
 2. **Write specs**: Edit `*.pin.xml` files. Each file has a root `<module name="...">` (or `<main>` for the entry point). Specs are `<spec id="...">description</spec>` elements — they must be **direct children** of the root element, not nested inside a `<specs>` wrapper.
 
-3. **Place markers**: Add `// D! id=<markerid>` comment lines in your code, directly above the code that implements a spec. The marker IDs are short unique strings you choose.
+3. **Place markers**: Add `// D! id=<markerid> range-start` and `// D! id=<markerid> range-end` comment lines in your code, wrapping the code that implements a spec. The marker IDs are short unique strings you choose.
 
 4. **Link markers to specs**: `drift link <marker> <module.spec>` — connects a marker to a spec. Spec IDs are module-qualified (e.g. `core.validate`).
 
@@ -48,35 +48,45 @@ Spec IDs are qualified as `<module>.<specId>`. Specs in `main.pin.xml` use the `
 
 # Markers
 
-Markers are comment lines in code files matching the pattern `D! id=<shortcode>`. They go on the line **above** the code they annotate. The scanner hashes the 10 lines following the marker line.
+Markers are comment lines in code files that come in pairs: `range-start` and `range-end`. They wrap the code region that implements a spec. The scanner hashes the lines between `range-start` and `range-end` (exclusive of both marker lines).
 
 ```go
-// D! id=validate_input
+// D! id=validate_input range-start
 func handleRequest() {
     validateInput()
 }
+// D! id=validate_input range-end
 ```
+
+**Rules:**
+- Every `range-start` with ID X must have a matching `range-end` with ID X in the **same file**, appearing **after** the start.
+- Old-style markers without `range-start` or `range-end` are rejected with an error.
+- The scanner reports all unpaired markers at once (not fail-on-first).
+- Nested and overlapping ranges are allowed.
+- Before hashing, other marker declaration lines within a range are blanked (the `D!` declaration is stripped, leaving only the comment prefix like `// `). This makes markers invisible to each other's hashes.
 
 Supported file extensions: `.go`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.java`, `.c`, `.cpp`, `.h`, `.hpp`, `.rs`, `.rb`, `.php`, `.swift`, `.kt`, `.cs`, `.scala`, `.sh`, `.bash`, `.lua`, `.dart`, `.vue`, `.svelte`.
 
-The marker pattern is a regex: `D!\s+id=(\S+)`. It can appear in any comment style (`//`, `#`, `--`, `/* */`, etc.).
+The marker pattern is a regex: `D!\s+id=(\S+)(?:\s+(range-start|range-end))?`. It can appear in any comment style (`//`, `#`, `--`, `/* */`, etc.).
 
 # CLI Commands
 
 | Command | Description |
 |---|---|
 | `drift init` | Create `drift.pin` and `main.pin.xml` template. |
-| `drift todo` | Scan specs and markers, report drift. Does not modify `drift.pin`. |
-| `drift list` | Show all specs, markers, links, and sync state. Read-only. |
+| `drift todo` | Scan specs and markers, report drift. Exit 0 if clean, 1 if drift, 2 on error. |
+| `drift list [--verbose]` | Show all specs, markers, links, and sync state. `--verbose` adds spec text and marker content preview. Read-only. |
+| `drift show <marker\|spec>` | Show current content of a spec or marker with filepath and line ranges. Linked specs/markers are also displayed. Read-only. |
 | `drift link <marker> <module.spec>` | Connect a marker to a spec. Both must exist on disk. |
 | `drift unlink <marker> <module.spec>` | Remove a link between a marker and a spec. Also clears resolution state for that edge. |
-| `drift reset <marker> <module.spec>` | Mark a drifted edge as resolved. Collapses baselines when all edges for a node are resolved. |
+| `drift reset <marker> <module.spec>` | Mark a drifted edge as resolved. Prints confirmation. Collapses baselines when all edges for a node are resolved. |
+| `drift reset <id>` | Remove an orphaned (deleted, no links) spec/marker from drift.pin. |
 | `drift help` | Show command reference with examples. |
 | `drift skill` | Print this guide (for LLM agents learning the tool). |
 
 # How Drift Detection Works
 
-`drift` SHA1-hashes spec content (the text inside `<spec>` elements) and marker content (the 10 lines following the marker line). These hashes are stored as baselines in `drift.pin`. On each `drift todo`, current hashes are compared against baselines:
+`drift` SHA1-hashes spec content (the text inside `<spec>` elements) and marker content (the lines between `range-start` and `range-end`, with other marker declarations blanked). These hashes are stored as baselines in `drift.pin`. On each `drift todo`, current hashes are compared against baselines:
 
 - **No drift**: All hashes match → "No changes detected. N specs, M markers, K links in sync."
 - **Marker changed**: The code near a marker was modified. Check if it still matches the spec.
@@ -92,3 +102,16 @@ Drift is per-edge (one marker ↔ one spec). If 1 spec is linked to 3 markers an
 # drift.ignore
 
 A `.gitignore`-style file at the project root. Patterns exclude files/directories from marker scanning. Directory patterns end with `/`. Comments start with `#`.
+
+# Edge Cases
+
+- **Unpaired markers:** A `range-start` without a matching `range-end` (or vice versa) in the same file causes a scanner error. All unpaired markers are reported at once.
+- **Old-style markers:** Markers without `range-start` or `range-end` suffix are rejected. This enforces the range model.
+- **Nested ranges:** An outer range can contain inner ranges. Inner marker declarations are blanked from the outer range's hash, so changing an inner marker's ID does not affect the outer marker's hash.
+- **Overlapping ranges:** Ranges that partially overlap (neither fully contains the other) are allowed.
+- **Empty ranges:** A `range-start` immediately followed by `range-end` (no content between them) hashes an empty string. This is allowed but not useful.
+- **Deleted specs:** When a spec is removed from a `.pin.xml` file but still in `drift.pin`, it is treated as drift (not an error). `drift todo` shows a deletion-specific message. Resolve with `drift reset <marker> <spec>`. After resolution, the deleted spec and its links are pruned from `drift.pin`.
+- **Deleted markers:** Same deletion-as-drift model as specs. The marker's hash becomes empty, triggering drift on all linked edges.
+- **Orphaned entries (deleted, no links):** Shown with `[deleted]` tag in `drift list`. Cleaned via `drift reset <id>` (single-arg: dot = spec, no dot = marker).
+- **`drift reset` semantics:** Rewrites the baseline hash to the current hash and clears the resolution entry. Prints "Resolved: MARKER → SPEC. Baseline updated." on success.
+- **`drift todo` exit codes:** 0 = clean, 1 = drift exists, 2 = error. Use in CI: `drift todo && echo "clean"`.
