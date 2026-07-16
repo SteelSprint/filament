@@ -13,7 +13,7 @@ import (
 	"driftpin/core"
 )
 
-// D! id=scode
+// D! id=scode range-start
 var codeExtensions = map[string]bool{
 	".go": true, ".py": true, ".js": true, ".ts": true,
 	".jsx": true, ".tsx": true, ".java": true, ".c": true,
@@ -22,6 +22,8 @@ var codeExtensions = map[string]bool{
 	".cs": true, ".scala": true, ".sh": true, ".bash": true,
 	".lua": true, ".dart": true, ".vue": true, ".svelte": true,
 }
+
+// D! id=scode range-end
 
 var markerPattern = regexp.MustCompile(`D!\s+id=(\S+)(?:\s+(range-start|range-end))?`)
 
@@ -77,7 +79,7 @@ type specElem struct {
 	Content string     `xml:",innerxml"`
 }
 
-// D! id=sspec
+// D! id=sspec range-start
 func (s *FileScanner) scanSpecs() ([]core.Spec, error) {
 	mainPath := filepath.Join(s.dir, "main.pin.xml")
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
@@ -92,6 +94,8 @@ func (s *FileScanner) scanSpecs() ([]core.Spec, error) {
 	}
 	return loader.load(mainPath)
 }
+
+// D! id=sspec range-end
 
 type importLoader struct {
 	seenIDs    map[string]bool
@@ -145,20 +149,22 @@ func (l *importLoader) load(absPath string) ([]core.Spec, error) {
 		return nil, fmt.Errorf("%s: expected <main> or <module> root element, got <%s>", absPath, file.XMLName.Local)
 	}
 
-	// D! id=swrap
+	// D! id=swrap range-start
 	if len(file.Wrapped) > 0 {
 		return nil, fmt.Errorf("%s: found <spec> elements nested inside a <specs> wrapper — specs must be direct children of <%s>, not inside <specs>", absPath, file.XMLName.Local)
 	}
+	// D! id=swrap range-end
 
 	var moduleName string
 	if isMain {
 		moduleName = "main"
 	} else {
 		moduleName = file.Name
-		// D! id=smname
+		// D! id=smname range-start
 		if moduleName == "" {
 			return nil, fmt.Errorf("%s: module element missing name attribute", absPath)
 		}
+		// D! id=smname range-end
 	}
 
 	if existingPath, ok := l.seenNames[moduleName]; ok {
@@ -178,19 +184,22 @@ func (l *importLoader) load(absPath string) ([]core.Spec, error) {
 				break
 			}
 		}
-		// D! id=smiss
+		// D! id=smiss range-start
 		if id == "" {
 			return nil, fmt.Errorf("%s: spec element missing id attribute", absPath)
 		}
-		// D! id=sidfmt
+		// D! id=smiss range-end
+		// D! id=sidfmt range-start
 		if strings.Contains(id, ".") {
 			return nil, fmt.Errorf("%s: spec id %q must not contain a dot (dots are reserved for module qualification)", absPath, id)
 		}
+		// D! id=sidfmt range-end
 		qualifiedID := moduleName + "." + id
-		// D! id=sdups
+		// D! id=sdups range-start
 		if l.seenIDs[qualifiedID] {
 			return nil, fmt.Errorf("duplicate spec id %q", qualifiedID)
 		}
+		// D! id=sdups range-end
 		l.seenIDs[qualifiedID] = true
 		content := strings.TrimSpace(elem.Content)
 		hash := sha1Hex(content)
@@ -218,7 +227,7 @@ func (l *importLoader) load(absPath string) ([]core.Spec, error) {
 	return specs, nil
 }
 
-// D! id=smark
+// D! id=smark range-start
 func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
 	var markers []core.Marker
 	seenIDs := make(map[string]bool)
@@ -246,10 +255,12 @@ func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 		for _, marker := range fileMarkers {
+			// D! id=sdupm range-start
 			if seenIDs[marker.ID] {
 				return fmt.Errorf("duplicate marker shortcode %q", marker.ID)
 			}
 			seenIDs[marker.ID] = true
+			// D! id=sdupm range-end
 			markers = append(markers, marker)
 		}
 		return nil
@@ -260,11 +271,13 @@ func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
 	return markers, nil
 }
 
+// D! id=smark range-end
+
 type rawMarkerDecl struct {
 	id     string
 	suffix string // "range-start" or "range-end"
-	line   int // 1-indexed
-	index  int // 0-indexed line position in file
+	line   int    // 1-indexed
+	index  int    // 0-indexed line position in file
 }
 
 func parseMarkerFile(path string) ([]core.Marker, error) {
@@ -289,9 +302,11 @@ func parseMarkerFile(path string) ([]core.Marker, error) {
 		suffix := match[2]
 		lineNumber := i + 1
 
+		// D! id=midfmt range-start
 		if strings.Contains(shortcode, ".") {
 			return nil, fmt.Errorf("%s:%d: marker id %q must not contain a dot (dots are reserved for spec ID qualification)", path, lineNumber, shortcode)
 		}
+		// D! id=midfmt range-end
 
 		if suffix != "range-start" && suffix != "range-end" {
 			return nil, fmt.Errorf("%s:%d: marker %q must declare range-start or range-end", path, lineNumber, shortcode)
@@ -379,7 +394,7 @@ func parseMarkerFile(path string) ([]core.Marker, error) {
 }
 
 // blankMarkerDecl strips the D! declaration from a line, leaving only the comment prefix.
-// e.g. "// D! id=foo range-start" becomes "// "
+// e.g. a marker declaration line "id=foo range-start" becomes just the comment prefix
 func blankMarkerDecl(line string) string {
 	idx := strings.Index(line, "D!")
 	if idx < 0 {
@@ -388,11 +403,13 @@ func blankMarkerDecl(line string) string {
 	return line[:idx]
 }
 
-// D! id=shash
+// D! id=shash range-start
 func sha1Hex(content string) string {
 	h := sha1.Sum([]byte(content))
 	return fmt.Sprintf("%x", h)
 }
+
+// D! id=shash range-end
 
 type driftIgnore struct {
 	patterns []ignorePattern

@@ -34,12 +34,14 @@ func NewOrchestrator(pin pinstore.PinStore, scanner scanner.Scanner) *Orchestrat
 	}
 }
 
-// D! id=oinit
+// D! id=oinit range-start
 func (o *Orchestrator) Init() error {
 	return o.pin.Save(pinstore.PinState{})
 }
 
-// D! id=otodo
+// D! id=oinit range-end
+
+// D! id=otodo range-start
 func (o *Orchestrator) Todo() (core.EvaluatedState, error) {
 	state, err := o.pin.Load()
 	if err != nil {
@@ -74,7 +76,9 @@ func (o *Orchestrator) Todo() (core.EvaluatedState, error) {
 	return o.core.EvaluateState(ctx)
 }
 
-// D! id=orest
+// D! id=otodo range-end
+
+// D! id=orest range-start
 func (o *Orchestrator) Reset(markerID, specID string) (core.EvaluatedState, error) {
 	state, err := o.pin.Load()
 	if err != nil {
@@ -128,7 +132,9 @@ func (o *Orchestrator) Reset(markerID, specID string) (core.EvaluatedState, erro
 	return evaluated, nil
 }
 
-// D! id=crorph
+// D! id=orest range-end
+
+// D! id=crorph range-start
 func (o *Orchestrator) ResetOrphan(id string) error {
 	state, err := o.pin.Load()
 	if err != nil {
@@ -236,7 +242,9 @@ func (o *Orchestrator) ResetOrphan(id string) error {
 	})
 }
 
-// D! id=olink
+// D! id=crorph range-end
+
+// D! id=olink range-start
 func (o *Orchestrator) Link(markerID, specID string) error {
 	state, err := o.pin.Load()
 	if err != nil {
@@ -258,7 +266,7 @@ func (o *Orchestrator) Link(markerID, specID string) error {
 		return err
 	}
 
-	// D! id=cperr
+	// D! id=cperr range-start
 	markerExists := false
 	for _, m := range reconciledMarkers {
 		if m.ID == markerID {
@@ -266,6 +274,7 @@ func (o *Orchestrator) Link(markerID, specID string) error {
 			break
 		}
 	}
+	// D! id=cperr range-end
 	if !markerExists {
 		var available []string
 		for _, m := range reconciledMarkers {
@@ -303,7 +312,9 @@ func (o *Orchestrator) Link(markerID, specID string) error {
 	})
 }
 
-// D! id=ounlnk
+// D! id=olink range-end
+
+// D! id=ounlnk range-start
 func (o *Orchestrator) Unlink(markerID, specID string) error {
 	state, err := o.pin.Load()
 	if err != nil {
@@ -341,7 +352,9 @@ func (o *Orchestrator) Unlink(markerID, specID string) error {
 	})
 }
 
-// D! id=orspc
+// D! id=ounlnk range-end
+
+// D! id=orspc range-start
 func reconcileSpecs(pinned []core.Spec, scanned []core.Spec) ([]core.Spec, error) {
 	pinnedByID := make(map[string]core.Spec, len(pinned))
 	for _, s := range pinned {
@@ -381,7 +394,9 @@ func reconcileSpecs(pinned []core.Spec, scanned []core.Spec) ([]core.Spec, error
 	return result, nil
 }
 
-// D! id=ormrk
+// D! id=orspc range-end
+
+// D! id=ormrk range-start
 func reconcileMarkers(pinned []core.Marker, scanned []core.Marker) ([]core.Marker, error) {
 	pinnedByID := make(map[string]core.Marker, len(pinned))
 	for _, m := range pinned {
@@ -421,6 +436,8 @@ func reconcileMarkers(pinned []core.Marker, scanned []core.Marker) ([]core.Marke
 	}
 	return result, nil
 }
+
+// D! id=ormrk range-end
 
 func buildScan(scanResult scanner.ScanResult, reconciledSpecs []core.Spec, reconciledMarkers []core.Marker) core.Scan {
 	specHashes := make(map[string]string, len(scanResult.Specs))

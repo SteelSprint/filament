@@ -1,6 +1,9 @@
 # Exclude test fixture file (contains D! marker literals for test data)
 internal/testutil/fixtures.go
 
+# Exclude test files (contain D! marker literals in test cases)
+*_test.go
+
 # Exclude examples (use new <module> format not yet supported by scanner)
 examples/
 

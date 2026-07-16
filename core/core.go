@@ -21,12 +21,12 @@ type Spec struct {
 }
 
 type Marker struct {
-	Filepath     string
-	LineNumber   int
+	Filepath      string
+	LineNumber    int
 	EndLineNumber int
-	ID           string
-	Hash         string
-	Deleted      bool
+	ID            string
+	Hash          string
+	Deleted       bool
 }
 
 type Link struct {
@@ -111,7 +111,7 @@ var (
 	ErrResetEdgeNotLinked      = errors.New("reset target edge not in links")
 )
 
-// D! id=cval
+// D! id=cval range-start
 func (ctx CoreAlgorithmContext) Validate() error {
 	seenSpecIDs := make(map[string]bool, len(ctx.Specs))
 	for _, spec := range ctx.Specs {
@@ -162,7 +162,9 @@ func (ctx CoreAlgorithmContext) Validate() error {
 	return nil
 }
 
-// D! id=cscn
+// D! id=cval range-end
+
+// D! id=cscn range-start
 func validateScanCoversAllNodes(scan Scan, specs []Spec, markers []Marker) error {
 	for _, spec := range specs {
 		if _, ok := scan.SpecHashes[spec.ID]; !ok {
@@ -201,6 +203,8 @@ func validateScanCoversAllNodes(scan Scan, specs []Spec, markers []Marker) error
 	return nil
 }
 
+// D! id=cscn range-end
+
 func (algorithm *CoreAlgorithm) EvaluateState(ctx CoreAlgorithmContext) (EvaluatedState, error) {
 	if err := ctx.Validate(); err != nil {
 		return EvaluatedState{}, err
@@ -215,7 +219,7 @@ func (algorithm *CoreAlgorithm) EvaluateState(ctx CoreAlgorithmContext) (Evaluat
 	}
 }
 
-// D! id=ctodo
+// D! id=ctodo range-start
 func (algorithm *CoreAlgorithm) evaluateTodoAction(ctx CoreAlgorithmContext, action TodoAction) (EvaluatedState, error) {
 	if err := validateScanCoversAllNodes(action.Scan, ctx.Specs, ctx.Markers); err != nil {
 		return EvaluatedState{}, err
@@ -236,7 +240,9 @@ func (algorithm *CoreAlgorithm) evaluateTodoAction(ctx CoreAlgorithmContext, act
 	}, nil
 }
 
-// D! id=crst
+// D! id=ctodo range-end
+
+// D! id=crst range-start
 func (algorithm *CoreAlgorithm) evaluateResetAction(ctx CoreAlgorithmContext, action ResetAction) (EvaluatedState, error) {
 	if err := validateScanCoversAllNodes(action.Scan, ctx.Specs, ctx.Markers); err != nil {
 		return EvaluatedState{}, err
@@ -277,7 +283,9 @@ func (algorithm *CoreAlgorithm) evaluateResetAction(ctx CoreAlgorithmContext, ac
 	}, nil
 }
 
-// D! id=ccol
+// D! id=crst range-end
+
+// D! id=ccol range-start
 func collapseResolvedNodes(
 	links []Link,
 	specsByID map[string]*Spec,
@@ -327,6 +335,8 @@ func collapseResolvedNodes(
 	}
 }
 
+// D! id=ccol range-end
+
 func markerHasAllEdgesChecked(
 	markerID string,
 	links []Link,
@@ -365,7 +375,7 @@ func specHasAllEdgesChecked(
 	return true
 }
 
-// D! id=cedg
+// D! id=cedg range-start
 func edgeIsUnchecked(
 	link Link,
 	specsByID map[string]*Spec,
@@ -395,6 +405,8 @@ func edgeIsUnchecked(
 	}
 	return true
 }
+
+// D! id=cedg range-end
 
 func pruneResolutionEntriesForCollapsedMarker(
 	resolutionStateByEdge map[string]ResolutionState,
@@ -438,7 +450,7 @@ func pruneResolutionEntriesForCollapsedSpec(
 	}
 }
 
-// D! id=cdeld
+// D! id=cdeld range-start
 func computeTodoList(
 	links []Link,
 	specsByID map[string]Spec,
@@ -477,6 +489,8 @@ func computeTodoList(
 	}
 	return todos
 }
+
+// D! id=cdeld range-end
 
 func resolutionEdgeKey(markerID, specID string) string {
 	return markerID + ":" + specID

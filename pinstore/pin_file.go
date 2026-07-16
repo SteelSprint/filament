@@ -9,8 +9,10 @@ import (
 	"driftpin/core"
 )
 
-// D! id=pnope
+// D! id=pnope range-start
 var ErrPinNotFound = errors.New("drift.pin not found, run 'drift init' first")
+
+// D! id=pnope range-end
 
 type PinState struct {
 	Specs           []core.Spec
@@ -48,11 +50,11 @@ type specXML struct {
 }
 
 type markerXML struct {
-	ID           string `xml:"id,attr"`
-	Hash         string `xml:"hash,attr"`
-	Filepath     string `xml:"filepath,attr"`
-	LineNumber   int    `xml:"line,attr"`
-	EndLineNumber int   `xml:"endline,attr"`
+	ID            string `xml:"id,attr"`
+	Hash          string `xml:"hash,attr"`
+	Filepath      string `xml:"filepath,attr"`
+	LineNumber    int    `xml:"line,attr"`
+	EndLineNumber int    `xml:"endline,attr"`
 }
 
 type linkXML struct {
@@ -67,7 +69,7 @@ type resolutionXML struct {
 	CurrentMarkerHash string `xml:"currentMarkerHash,attr"`
 }
 
-// D! id=pload
+// D! id=pload range-start
 func (s *FilePinStore) Load() (PinState, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
@@ -129,7 +131,9 @@ func (s *FilePinStore) Load() (PinState, error) {
 	}, nil
 }
 
-// D! id=psave
+// D! id=pload range-end
+
+// D! id=psave range-start
 func (s *FilePinStore) Save(state PinState) error {
 	file := pinFileXML{
 		Specs:       make([]specXML, len(state.Specs)),
@@ -181,3 +185,5 @@ func (s *FilePinStore) Save(state PinState) error {
 	data = append(data, '\n')
 	return os.WriteFile(s.path, data, 0644)
 }
+
+// D! id=psave range-end

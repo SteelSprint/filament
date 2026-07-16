@@ -24,7 +24,7 @@ var initMainPinXML string
 
 var markerSyntax = "D" + "! id=<markerid>"
 
-// D! id=cdisp
+// D! id=cdisp range-start
 func Run(args []string, dir string) (string, int) {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		return helpText(), 0
@@ -51,7 +51,7 @@ func Run(args []string, dir string) (string, int) {
 		}
 		return formatTodo(state), 0
 
-	// D! id=crfmt
+	// D! id=crfmt range-start
 	case "reset":
 		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
 			return "Usage:\n  drift reset <marker> <module.spec>  Resolve a drifted edge\n  drift reset <id>                Remove an orphaned (deleted, no links) spec/marker\n\nMark a drifted edge as resolved. Collapses baselines when all edges for a node are resolved.\nWhen a spec or marker has been deleted and has no links, use a single ID to remove it from drift.pin.\n\nExamples:\n  drift reset validate_input core.validate_input\n  drift reset main.deleted_spec", 0
@@ -75,7 +75,8 @@ func Run(args []string, dir string) (string, int) {
 		}
 		return "", 0
 
-	// D! id=clfmt
+	// D! id=crfmt range-end
+	// D! id=clfmt range-start
 	case "link":
 		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
 			return "Usage: drift link <marker> <module.spec>\n\nConnect a marker to a spec. Both must exist on disk.\n\nExample: drift link validate_input core.validate_input", 0
@@ -89,7 +90,8 @@ func Run(args []string, dir string) (string, int) {
 		}
 		return fmt.Sprintf("Linked marker %q to spec %q", args[1], args[2]), 0
 
-	// D! id=cunlnk
+	// D! id=clfmt range-end
+	// D! id=cunlnk range-start
 	case "unlink":
 		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
 			return "Usage: drift unlink <marker> <module.spec>\n\nRemove a link between a marker and a spec. Also clears any resolution state for that edge.\n\nExample: drift unlink validate_input core.validate_input", 0
@@ -103,7 +105,8 @@ func Run(args []string, dir string) (string, int) {
 		}
 		return fmt.Sprintf("Unlinked marker %q from spec %q", args[1], args[2]), 0
 
-	// D! id=clst
+	// D! id=cunlnk range-end
+	// D! id=clst range-start
 	case "list":
 		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
 			return "Usage: drift list\n\nShow all specs, markers, links, and sync state.", 0
@@ -114,7 +117,8 @@ func Run(args []string, dir string) (string, int) {
 		}
 		return formatList(state), 0
 
-	// D! id=cskill
+	// D! id=clst range-end
+	// D! id=cskill range-start
 	case "skill":
 		return skillContent, 0
 
@@ -123,21 +127,28 @@ func Run(args []string, dir string) (string, int) {
 	}
 }
 
-// D! id=chelp
+// D! id=cdisp range-end
+
+// D! id=chelp range-start
 func helpText() string {
 	return helpContent
 }
 
-// D! id=cinit
+// D! id=chelp range-end
+
+// D! id=cinit range-start
 func writeInitFiles(dir string) error {
 	mainPath := dir + "/main.pin.xml"
 	if !fileExists(mainPath) {
+		// D! id=cskill range-end
 		if err := writeFile(mainPath, initMainPinXML); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// D! id=cinit range-end
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -148,7 +159,7 @@ func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// D! id=cfmt
+// D! id=cfmt range-start
 func formatTodo(state core.EvaluatedState) string {
 	if len(state.Todos) == 0 {
 		nSpecs := len(state.Specs)
@@ -223,7 +234,9 @@ func formatTodo(state core.EvaluatedState) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-// D! id=ofmtl
+// D! id=cfmt range-end
+
+// D! id=ofmtl range-start
 func formatList(state core.EvaluatedState) string {
 	if len(state.Specs) == 0 && len(state.Markers) == 0 {
 		return "No specs or markers registered.\nRun `drift init` to get started, then create spec files (*.pin.xml) and place " + markerSyntax + " markers in your code."
@@ -286,6 +299,8 @@ func formatList(state core.EvaluatedState) string {
 
 	return strings.TrimRight(sb.String(), "\n")
 }
+
+// D! id=ofmtl range-end
 
 func sortSpecsByID(specs []core.Spec) {
 	for i := 1; i < len(specs); i++ {
