@@ -56,6 +56,7 @@ func main() {
 		runLabel = time.Now().Format("2006-01-02-150405")
 	}
 
+	var runDirs []string
 	for i, prompt := range prompts {
 		var p *Pipeline
 		if *battery && len(prompts) > 1 {
@@ -66,6 +67,11 @@ func main() {
 		if err := p.Run(prompt, *dryRun); err != nil {
 			fatal("run failed: %v", err)
 		}
+		runDirs = append(runDirs, p.RunDir())
+	}
+
+	if err := synthesize(repoRoot, runLabel, runDirs, *judgeModel, *dryRun); err != nil {
+		fatal("synthesize failed: %v", err)
 	}
 }
 

@@ -1,6 +1,6 @@
 # Driftpin Eval Pipeline
 
-LLM-as-judge evaluation of driftpin's cold-start UX. A subject LLM is handed the tool (binary + docs only) and asked to build a project using driftpin end-to-end. A judge LLM evaluates the result and produces tool-improvement recommendations.
+LLM-as-judge evaluation of driftpin's cold-start UX. A subject LLM is handed ONLY a pre-built `drift` binary and a task prompt — no docs, no source, no agents. It must figure out the tool from the binary alone. A judge LLM evaluates the result and produces tool-improvement recommendations.
 
 ## Usage
 
@@ -30,9 +30,9 @@ go run ./eval --dry-run "build a TODO app"
 
 ## How it works
 
-1. **Stage** — Builds the `drift` binary, copies it + `README.md` + `DOCUMENTATION.md` into a fresh `eval/runs/<timestamp>/tool/` directory. Creates an empty `workspace/` dir. Stages custom agent definitions for the subject and judge.
+1. **Stage** — Builds the `drift` binary and copies it into a fresh `eval/runs/<timestamp>/workspace/` directory. Stages the judge agent definition in the run directory. The subject gets nothing else — no docs, no source, no pre-installed skills.
 
-2. **Subject run** — An LLM (default: MiMo v2.5 Pro) is launched in the empty workspace via `opencode run --agent eval-subject --auto`. It reads the docs from `../tool/`, completes the task, uses driftpin end-to-end (init, specs, markers, links, `drift todo`), and writes a `self-debrief.md` with structured feedback.
+2. **Subject run** — An LLM (default: MiMo v2.5 Pro) is launched in the workspace via `opencode run --auto --format json`. It receives only the task prompt as a message. It must discover how to use `drift` from the binary alone (e.g. running it with no args, `--help`, or trying subcommands). It builds a project, uses driftpin end-to-end, and writes a `self-debrief.md`.
 
 3. **Judge run** — A smarter LLM (default: GLM-5.2) is launched in the run directory via `opencode run --agent eval-judge --auto`. It inspects the subject's workspace (runs `drift todo`, reads spec files, checks markers/links), reads the subject's `self-debrief.md`, samples the transcript, and writes a `report.md`.
 
@@ -47,16 +47,26 @@ go run ./eval --dry-run "build a TODO app"
 
 ```
 eval/runs/<timestamp>/
-  tool/              # binary + docs (the "tool" handed to the subject)
-  workspace/         # subject's completed project (ground truth)
+  workspace/         # subject's working dir — contains only the drift binary at start
+    drift            # the pre-built binary
+    (project files)  # created by the subject
     self-debrief.md  # subject's feedback
-  .opencode/agents/  # judge agent definition
+  .opencode/agents/  # judge agent definition (pipeline infra)
   subject.jsonl      # full subject transcript
-  judge.jsonl        # full judge transcript
+  judge.jsonl         # full judge transcript
   report.md          # the evaluation (scorecard + qualitative + recommendations)
 ```
 
+## What the subject receives
+
+```
+workspace/
+  drift    # the binary, executable
+```
+
+Plus the task prompt as the `opencode run` message. Nothing else. No docs, no agents, no skills. Discovery is part of what we're measuring.
+
 ## Agent configuration
 
-- **`eval-subject`** (`eval/agents/eval-subject.md`): primary agent, 40 steps, full tool access + external directory access. Cold-start system prompt for run-to-run consistency.
-- **`eval-judge`** (`eval/agents/eval-judge.md`): primary agent, read + bash access, edit scoped to `report.md` only. Cannot corrupt the workspace.
+- **Subject**: default `build` agent, no custom agent. Explicit `--model` override for reproducibility.
+- **`eval-judge`** (`eval/agents/eval-judge.md`): custom primary agent, read + bash access, edit scoped to `report.md` only. Cannot corrupt the workspace.

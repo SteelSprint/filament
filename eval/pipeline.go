@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -20,7 +19,6 @@ type Pipeline struct {
 	repoRoot     string
 	runLabel     string
 	runDir       string
-	toolDir      string
 	workspaceDir string
 	subjectModel string
 	judgeModel   string
@@ -69,35 +67,16 @@ func (p *Pipeline) Run(prompt string, dryRun bool) error {
 
 func (p *Pipeline) stage() error {
 	p.runDir = filepath.Join(p.repoRoot, "eval", "runs", p.runLabel)
-	p.toolDir = filepath.Join(p.runDir, "tool")
 	p.workspaceDir = filepath.Join(p.runDir, "workspace")
 
-	for _, dir := range []string{p.runDir, p.toolDir, p.workspaceDir} {
+	for _, dir := range []string{p.runDir, p.workspaceDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
 
-	if err := p.buildAndCopyBinary(); err != nil {
+	if err := p.buildBinary(); err != nil {
 		return err
-	}
-
-	for _, doc := range []string{"README.md", "DOCUMENTATION.md"} {
-		if err := copyFile(filepath.Join(p.repoRoot, doc), filepath.Join(p.toolDir, doc)); err != nil {
-			return fmt.Errorf("copy %s: %w", doc, err)
-		}
-	}
-
-	agentSrc := filepath.Join(p.repoRoot, "eval", "agents")
-	subjectAgentsDir := filepath.Join(p.workspaceDir, ".opencode", "agents")
-	if err := os.MkdirAll(subjectAgentsDir, 0755); err != nil {
-		return err
-	}
-	if err := copyFile(
-		filepath.Join(agentSrc, "eval-subject.md"),
-		filepath.Join(subjectAgentsDir, "eval-subject.md"),
-	); err != nil {
-		return fmt.Errorf("stage subject agent: %w", err)
 	}
 
 	judgeAgentsDir := filepath.Join(p.runDir, ".opencode", "agents")
@@ -105,7 +84,7 @@ func (p *Pipeline) stage() error {
 		return err
 	}
 	if err := copyFile(
-		filepath.Join(agentSrc, "eval-judge.md"),
+		filepath.Join(p.repoRoot, "eval", "agents", "eval-judge.md"),
 		filepath.Join(judgeAgentsDir, "eval-judge.md"),
 	); err != nil {
 		return fmt.Errorf("stage judge agent: %w", err)
@@ -114,15 +93,16 @@ func (p *Pipeline) stage() error {
 	return nil
 }
 
-func (p *Pipeline) buildAndCopyBinary() error {
-	cmd := exec.Command("go", "build", "-o", filepath.Join(p.toolDir, "drift"), "./cmd/drift")
+func (p *Pipeline) buildBinary() error {
+	binaryPath := filepath.Join(p.workspaceDir, "drift")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/drift")
 	cmd.Dir = p.repoRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go build: %w", err)
 	}
-	return os.Chmod(filepath.Join(p.toolDir, "drift"), 0755)
+	return os.Chmod(binaryPath, 0755)
 }
 
 func (p *Pipeline) runSubject(prompt string) error {
@@ -135,7 +115,6 @@ func (p *Pipeline) runSubject(prompt string) error {
 	fullPrompt := buildSubjectPrompt(prompt)
 
 	return p.runOpencode(&opencodeArgs{
-		agent:   "eval-subject",
 		model:   p.subjectModel,
 		dir:     p.workspaceDir,
 		title:   "subject",
@@ -202,30 +181,7 @@ type opencodeArgs struct {
 }
 
 func (p *Pipeline) runOpencode(a *opencodeArgs) error {
-	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "opencode", "run",
-		"--agent", a.agent,
-		"--model", a.model,
-		"--auto",
-		"--format", "json",
-		"--dir", a.dir,
-		"--title", a.title,
-		a.prompt,
-	)
-	cmd.Stdout = a.stdout
-	cmd.Stderr = os.Stderr
-
-	fmt.Printf("[%s] running opencode (agent=%s model=%s dir=%s timeout=%v)\n",
-		a.title, a.agent, a.model, a.dir, a.timeout)
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("opencode timed out after %v", a.timeout)
-		}
-		return fmt.Errorf("opencode run: %w", err)
-	}
-	return nil
+	return runOpencodeStandalone(a)
 }
 
 func buildSubjectPrompt(task string) string {
@@ -234,9 +190,9 @@ func buildSubjectPrompt(task string) string {
 ## Your environment
 
 - Your working directory is an EMPTY project directory.
-- A pre-built `+"`drift`"+` binary and its documentation live in `+"`../tool/`"+`. Read `+"`../tool/README.md`"+` and `+"`../tool/DOCUMENTATION.md`"+` to understand the tool.
-- The `+"`drift`"+` binary is at `+"`../tool/drift`"+`. You will need to make it executable or invoke it with a full path.
-- You have NO access to the driftpin source code — only the binary and docs.
+- A pre-built `+"`drift`"+` binary is in your working directory. It is executable.
+- You have NO documentation, NO source code, and NO outside help — only the binary.
+- Figure out how to use it by inspecting the binary (e.g. running it with no args, `+"`--help`"+`, or trying subcommands).
 
 ## Your task
 
@@ -244,19 +200,19 @@ func buildSubjectPrompt(task string) string {
 
 ## What you must do
 
-1. Read the driftpin documentation in `+"`../tool/`"+`.
+1. Figure out how the `+"`drift`"+` binary works by exploring it yourself.
 2. Complete the task above — build the project, write the code, make it work.
 3. Use driftpin properly and end-to-end throughout:
-   - Run `+"`drift init`"+` in your project.
-   - Create spec files (`+"`*.pin.xml`"+`) that describe what your code does.
-   - Place `+"`D! id=<markerid>`"+` markers in your code at the locations that implement each spec.
-   - Run `+"`drift link <marker> <module.spec>`"+` to connect markers to specs.
+   - Initialize driftpin in your project.
+   - Create spec files that describe what your code does.
+   - Place markers in your code at the locations that implement each spec.
+   - Link markers to specs.
    - Run `+"`drift todo`"+` and make sure it reports "No changes detected." (meaning specs and code are in sync).
 4. Write a file called `+"`self-debrief.md`"+` in your project root with these EXACT sections:
    - **What worked well**: What was easy or intuitive about using driftpin.
    - **What was confusing**: What was hard to understand or figure out.
    - **Errors encountered**: Any errors you hit and how you resolved them (or didn't).
-   - **Missing documentation**: Things you needed to know that weren't in the docs.
+   - **Missing documentation**: Things you needed to know that weren't discoverable from the binary alone.
    - **Suggestions for the tool authors**: Concrete improvements that would make driftpin easier for an LLM to use cold.
 
 ## Important
@@ -272,7 +228,7 @@ func buildJudgePrompt(originalTask, workspaceDir, runDir string) string {
 
 ## Context
 
-A subject LLM was given a task and asked to use driftpin (a spec-drift tool) end-to-end while completing it. You must evaluate how well the subject used driftpin and how well the tool served the subject.
+A subject LLM was given a task and asked to use driftpin (a spec-drift tool) end-to-end while completing it. The subject received ONLY a pre-built `+"`drift`"+` binary and the task prompt — no documentation, no source code. You must evaluate how well the subject used driftpin and how well the tool served the subject.
 
 ## Artifacts to inspect
 
@@ -281,7 +237,7 @@ A subject LLM was given a task and asked to use driftpin (a spec-drift tool) end
 
 2. **The subject's workspace** (its completed project): `+"`%s`"+`
    - Check `+"`main.pin.xml`"+` — is it present? Well-structured? Does it use the module/import system?
-   - Run `+"`%s/drift todo`"+` — does it report "No changes detected."? (Clean = good)
+   - Run `+"`drift todo`"+` from inside the workspace — does it report "No changes detected."? (Clean = good)
    - Check `+"`*.pin.xml`"+` files — are specs meaningful or boilerplate?
    - Check markers (`+"`D! id=...`"+`) in code — are they placed at meaningful locations?
    - Check links — are markers linked to specs?
@@ -311,7 +267,7 @@ Rate each item PASS or FAIL with a one-line note:
 - How well did the subject understand and use driftpin?
 - What patterns of confusion or success did you see?
 - Did the subject's `+"`self-debrief.md`"+` reveal any UX problems?
-- Was the documentation sufficient for cold use?
+- Was the binary self-describing enough for cold use?
 
 ### 3. Tool-Improvement Recommendations
 
@@ -324,10 +280,10 @@ These recommendations will be triaged into the tool's development plan, so be sp
 ## Constraints
 
 - You may read any file in the workspace or run directory.
-- You may run bash commands (e.g., `+"`drift todo`"+`) to verify the subject's work.
+- You may run bash commands (e.g., `+"`drift todo`"+`) to verify the subject's work. The `+"`drift`"+` binary is in the workspace directory.
 - You may ONLY write to `+"`report.md`"+` — do not modify any other file.
 - Be rigorous and fair. Don't inflate scores.
-`, originalTask, workspaceDir, filepath.Join(workspaceDir, "..", "tool"), runDir)
+`, originalTask, workspaceDir, runDir)
 }
 
 func copyFile(src, dst string) error {
@@ -338,7 +294,183 @@ func copyFile(src, dst string) error {
 	return os.WriteFile(dst, data, 0644)
 }
 
-func init() {
-	// Suppress unused import warning for strings if we expand later.
-	_ = strings.TrimSpace
+func (p *Pipeline) RunDir() string {
+	return p.runDir
+}
+
+func synthesize(repoRoot, batchLabel string, runDirs []string, judgeModel string, dryRun bool) error {
+	fmt.Printf("\n=== synthesis: %s ===\n", batchLabel)
+	fmt.Printf("runs: %d\n", len(runDirs))
+	fmt.Printf("judge model:   %s\n", judgeModel)
+
+	if dryRun {
+		fmt.Println("[dry-run] skipping synthesis LLM call")
+		return nil
+	}
+
+	synthesisRunDir := filepath.Join(repoRoot, "eval", "runs", batchLabel+"-synthesis")
+	if err := os.MkdirAll(synthesisRunDir, 0755); err != nil {
+		return err
+	}
+
+	synthesisOut, err := os.Create(filepath.Join(synthesisRunDir, "synthesis.jsonl"))
+	if err != nil {
+		return err
+	}
+	defer synthesisOut.Close()
+
+	prompt := buildSynthesisPrompt(runDirs, batchLabel)
+
+	if err := runOpencodeStandalone(&opencodeArgs{
+		agent:   "eval-judge",
+		model:   judgeModel,
+		dir:     synthesisRunDir,
+		title:   "synthesis",
+		prompt:  prompt,
+		stdout:  synthesisOut,
+		timeout: judgeTimeout,
+	}); err != nil {
+		return fmt.Errorf("synthesis opencode run: %w", err)
+	}
+	fmt.Println("[synthesis] done")
+
+	synthesisPath := filepath.Join(synthesisRunDir, "synthesis.md")
+	if _, err := os.Stat(synthesisPath); err != nil {
+		return fmt.Errorf("synthesis.md not written by judge: %w", err)
+	}
+
+	obsDir := filepath.Join(repoRoot, "observations")
+	if err := os.MkdirAll(obsDir, 0755); err != nil {
+		return err
+	}
+	num := nextObservationNumber(obsDir)
+	obsPath := filepath.Join(obsDir, fmt.Sprintf("%04d-%s.md", num, batchLabel))
+	if err := copyFile(synthesisPath, obsPath); err != nil {
+		return fmt.Errorf("file observation: %w", err)
+	}
+	fmt.Printf("[observation] filed → %s\n", obsPath)
+
+	return nil
+}
+
+func nextObservationNumber(dir string) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 1
+	}
+	maxNum := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		var num int
+		_, err := fmt.Sscanf(e.Name(), "%d-", &num)
+		if err != nil {
+			continue
+		}
+		if num > maxNum {
+			maxNum = num
+		}
+	}
+	return maxNum + 1
+}
+
+func runOpencodeStandalone(a *opencodeArgs) error {
+	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
+	defer cancel()
+
+	args := []string{
+		"run",
+		"--model", a.model,
+		"--auto",
+		"--format", "json",
+		"--dir", a.dir,
+		"--title", a.title,
+	}
+	if a.agent != "" {
+		args = append(args, "--agent", a.agent)
+	}
+	args = append(args, a.prompt)
+
+	cmd := exec.CommandContext(ctx, "opencode", args...)
+	cmd.Stdout = a.stdout
+	cmd.Stderr = os.Stderr
+
+	agentLabel := a.agent
+	if agentLabel == "" {
+		agentLabel = "build (default)"
+	}
+	fmt.Printf("[%s] running opencode (agent=%s model=%s dir=%s timeout=%v)\n",
+		a.title, agentLabel, a.model, a.dir, a.timeout)
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("opencode timed out after %v", a.timeout)
+		}
+		return fmt.Errorf("opencode run: %w", err)
+	}
+	return nil
+}
+
+func buildSynthesisPrompt(runDirs []string, batchLabel string) string {
+	var reportPaths []string
+	for _, dir := range runDirs {
+		reportPaths = append(reportPaths, filepath.Join(dir, "report.md"))
+	}
+
+	var pathsList string
+	for i, p := range reportPaths {
+		pathsList += fmt.Sprintf("   %d. `%s`\n", i+1, p)
+	}
+
+	return fmt.Sprintf(`You are the JUDGE in an LLM-as-judge evaluation of a spec-drift tool called "driftpin".
+
+You previously evaluated %d subject run(s) in batch %q. Each run produced a `+"`report.md`"+`. Your job now is to synthesize all reports into a single cross-run observation record.
+
+## Reports to read
+
+%s
+
+## What you must produce
+
+Write a file called `+"`synthesis.md`"+` in your current working directory with this EXACT format:
+
+# Observation NNNN — %s
+
+Date: <today's date>
+Runs: <list of the run directories>
+
+## Known issues
+
+Any harness issues, sandbox escapes, tainted runs, or methodology problems discovered. If a run was compromised, note it here and exclude its findings from the convergent analysis.
+
+## Convergent findings
+
+A markdown table of themes that appeared across multiple runs:
+
+| Theme | Runs | Priority |
+|---|---|---|
+| <theme> | <run numbers> | <High/Medium/Low> |
+
+Only include themes that appeared in 2+ runs (or all runs if only 1 run). Single-run findings go in "Divergent findings" below.
+
+## Divergent findings
+
+Run-specific observations that didn't converge across runs. Note which run each came from.
+
+## Prioritized recommendations (consolidated)
+
+A merged, deduplicated, prioritized list of all tool-improvement recommendations from all runs:
+1. [High/Medium/Low] <recommendation> — <which runs flagged this>
+2. ...
+
+## Next steps
+
+The judge's recommendation for what the tool authors should do next, based on the consolidated findings.
+
+## Constraints
+
+- You may ONLY write to `+"`synthesis.md`"+` — do not modify any other file.
+- Read each report.md thoroughly before writing.
+- If a run was tainted (e.g. sandbox escape), note it in "Known issues" and exclude its findings from convergence, but still note what happened.
+`, len(runDirs), batchLabel, pathsList, batchLabel)
 }
