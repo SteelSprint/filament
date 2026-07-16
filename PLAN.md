@@ -136,7 +136,7 @@ Running `drift todo` in `services/auth/` uses `services/auth/main.pin.xml` and `
 | Marker ID format | Must not contain a dot (scanner rejects) |
 | Marker-to-spec links | `drift link <marker> <module.spec>` — space-separated. |
 | drift.ignore | Applies to marker discovery only (code files). Spec discovery is via imports. |
-| Marker hashing | Next 10 lines from marker line |
+| Marker hashing | Next 10 lines from marker line — **SEE Phase 6: hash model rework** |
 | Deleted spec/marker | Treated as drift (not error). Sentinel hash `""` in scan. Surfaces as todo. Pruned after `drift reset`. |
 | Orphan (deleted, no links) | Shows as `[deleted]` in `drift list`. Cleaned via `drift reset <id>` (single-arg). |
 | Stale entry handling | No hard errors. Reconciler keeps stale entries. Deletion flows through normal drift→reset workflow. |
@@ -323,126 +323,193 @@ observations/            # filed observation records (auto-numbered)
 - Parallel eval pipeline with `--runs` flag
 - Observation 0005 filed: 5 High-priority findings
 
-### Phase 5: Stale entry handling + ID format invariants
+### Phase 5: ✓ DONE
 
-**Problem**: Deleting a spec/marker from disk hard-fails all `drift todo`/`drift list` commands with no recovery path except hand-editing drift.pin.
+- ID format validation (scanner rejects dots in spec local IDs and marker shortcodes)
+- Stale entry handling (deletion = drift, sentinel hash, graceful cleanup)
+- `drift reset <id>` orphan cleanup (dot=spec, no dot=marker)
+- Promoted `drift skill` at top of help
+- Fixture-based eval cases (drift-detection, bad-link, code-refactor)
+- Parallel eval pipeline with `--runs` flag
+- Observation 0006 filed: full 6-run battery, all subjects+judges+synthesis complete
 
-**Solution**: Treat deletion as drift (not error). Deletion flows through the normal drift→reset workflow. Orphans (deleted, no links) are cleaned via `drift reset <id>`.
+## Phase 6: Hash model rework + agent ergonomics
 
-#### Implementation
+**Source**: Observation 0006 — Phase 5 full battery (6 runs)
 
-1. **ID format validation** (scanner.go + scanner.pin.xml)
-   - Spec local IDs must not contain dots → scanner rejects with error
-   - Marker shortcodes must not contain dots → scanner rejects with error
-   - New specs: `scanner.spec_id_format`, `scanner.marker_id_format`
-   - New markers: `sidfmt`, `midfmt`
-   - Update `drift skill`: document the dot invariant
+### Problem statement
 
-2. **Stale entry handling** (orchestrator.go + core.go + cli.go)
-   - `reconcileSpecs`/`reconcileMarkers`: stop hard-erroring, keep stale entries
-   - `buildScan`: add sentinel `""` hash for stale entries
-   - `Todo` struct: add `SpecDeleted bool`, `MarkerDeleted bool`
-   - `computeTodoList`: set deleted flags when scan hash is `""`
-   - `collapseResolvedNodes`: when scan hash is `""`, delete node + its links
-   - `formatTodo`: deletion-specific message
-   - `formatList`: `[deleted]` tag for stale entries
-   - Updated specs: `orch.reconcile_specs`, `orch.reconcile_markers`, `core.scan_coverage`, `core.collapse`, `core.edge_unchecked`, `core.todo_action`, `cli.format_todo`, `cli.list_format`
-   - New spec: `core.deleted_drift`, marker: `cdeld`
+Observation 0006 surfaced two fundamental issues:
 
-3. **`drift reset <id>` orphan cleanup** (orchestrator.go + cli.go)
-   - Single-arg reset: dot → spec, no dot → marker
-   - Remove orphan from pin state if stale (not on disk, no links)
-   - Error if still on disk or has links
-   - Updated specs: `cli.reset_format`, `cli.dispatch`, `orch.reset`
-   - New spec: `cli.reset_orphan`, marker: `crorph`
+1. **Drift detection is not robust to marker placement.** The fixed 10-line positional hash window produces two failure modes:
+   - **Positional cascade drift** (run 3): Adding an import shifted the hash windows of unrelated markers, producing spurious drift on untouched code.
+   - **False "in sync"** (run 5): Markers placed coarsely (tens of lines from implementing logic) meant 3 real edits to betting/draw code produced "in sync" — the tool silently missed the drift it exists to catch.
 
-4. **Promote `drift skill` in help** (help.txt)
-   - Add "First time? Run `drift skill` for the full guide." at top
-   - Updated spec: `cli.help`
+2. **The tool gives agents little help understanding *what* drifted.** `drift todo` says "something changed" but not what. `drift list` shows IDs and paths but not spec text. Agents must hand-parse `drift.pin` to investigate.
 
-5. **Fixtures: drop setup.sh** (eval/prompts/ + pipeline.go)
-   - Remove `setup.sh` from all 3 fixtures
-   - Commit pre-built `drift.pin` directly in each fixture directory
-   - Add `go.mod` to fixtures that need it
-   - Remove setup.sh execution code from `copyFixture` in pipeline.go
+### Recommendations (from observation 0006, consolidated)
 
-6. **Rebuild + verify**
-   - Rebuild drift.pin with all new specs/markers/links
-   - Run tests, vet, gofmt
-   - `drift todo` must be clean
+#### High priority
 
-7. **Re-run evals**
-   - Run 4 cases (apply-existing, bad-link, code-refactor, drift-detection)
-   - File observation 0006
+| # | Recommendation | Runs | Description |
+|---|---|---|---|
+| 1 | Rework hash model | 3, 5 | Replace/augment fixed 10-line window with a semantic region (function body / next decl boundary / `fn=` anchoring) |
+| 2 | `drift diff <marker\|spec>` | 0, 1, 2, 3, 4 | Show old-vs-new hash and changed content, not just "drifted" |
+| 3 | Spec text in `drift list` | 0, 1, 4, 5 | Show spec description inline so consistent-but-wrong links are visible |
+| 4 | Fix `line="0"` for specs | 0, 3, 4 | Record real `<spec>` line or drop the `:0` suffix for specs |
+| 5 | `drift lint` placement check | 1, 5 | Warn when a marker's hashed window contains no `func`/`class`/`def` line |
 
-#### New/updated tests (~22)
+#### Medium priority
 
-| Test | What it verifies |
-|---|---|
-| Scanner: spec local ID with dot → error | `scanner.spec_id_format` |
-| Scanner: marker ID with dot → error | `scanner.marker_id_format` |
-| Scanner: spec local ID without dot → OK | No regression |
-| Scanner: marker ID without dot → OK | No regression |
-| Spec deleted with links → drift detected | Reconciler keeps stale, todo shows drift |
-| Spec deleted with links → reset → pruned | After reset, spec + links gone |
-| Marker deleted with links → drift detected | Same for markers |
-| Marker deleted with links → reset → pruned | Same |
-| Spec deleted no links → drift list shows [deleted] | Zombie visible |
-| Spec deleted no links → drift reset <id> → pruned | Orphan cleanup |
-| Marker deleted no links → drift reset <id> → pruned | Same |
-| drift reset <id> on live spec → error | Can't remove something on disk |
-| drift reset <id> on spec with links → error | Must resolve links first |
-| drift reset <id> nonexistent → error | Clear error |
-| drift todo shows deletion message | formatTodo message correct |
-| CLI: drift reset with 1 arg | Correct dispatch |
-| CLI: drift reset with 0 args → usage showing both forms | Usage error |
-| CLI: drift list shows [deleted] tag | formatList correct |
-| Existing reset tests still pass | No regression |
-| Existing reconcile tests updated (stale no longer errors) | No regression |
-| Existing scanner tests still pass | No regression |
+| # | Recommendation | Runs | Description |
+|---|---|---|---|
+| 6 | `drift inspect` / `drift show` | 0, 1, 2, 4 | Read-only command to print a marker's hashed region + linked spec text |
+| 7 | `--json` output | 0, 1, 2 | Add `--json` to `drift todo`, `drift list`, `drift link` |
+| 8 | `drift check` / `drift verify` | 0, 4 | Assert all linked, no orphans, in sync, non-zero exit on failure |
+| 9 | `drift reset --all` | 2, 3 | Bulk resolve for multi-edge refactors |
+| 10 | `drift reset` confirmation | 2, 3 | Emit `✓ Resolved…` line on success; clarify "collapses baselines" in skill |
+| 11 | Document edge cases in `drift skill` | 0, 2, 3, 4 | Deleted markers, removed specs, duplicate IDs, marker-line inclusion, adjacent markers, `line=` auto-update |
 
-#### Spec/marker ledger
+#### Low priority
 
-| New specs | File |
-|---|---|
-| `scanner.spec_id_format` | scanner.pin.xml |
-| `scanner.marker_id_format` | scanner.pin.xml |
-| `core.deleted_drift` | core.pin.xml |
-| `cli.reset_orphan` | cli.pin.xml |
+| # | Recommendation | Runs | Description |
+|---|---|---|---|
+| 12 | Spec-ID vs marker-ID qualification docs | 0, 1, 4 | Clarify convention in skill/help |
+| 13 | `--dry-run` on `drift reset` | 3 | Preview which baselines change |
+| 14 | Per-subcommand `--help` | 4 | e.g. `drift link --help` |
+| 15 | Normalize help-flag handling | 5 | `--help`/`-h`/`help`/no-arg as strict aliases |
+| 16 | Detect duplicate `drift link` | 5 | Emit "already linked" message |
+| 17 | `drift init` placement hint | 5 | 2-line marker-placement hint on stdout |
+| 18 | `drift demo` / `drift init --demo` | 4 | Self-contained demo teaching drift→reset cycle |
+| 19 | `drift --version` | 4 | Version/changelog output |
+| 20 | Clarify `drift.ignore` examples | 4 | Concrete patterns, negation, comments |
+| 21 | `drift auto-link` | 0 | Link by ID similarity for single-module projects |
+| 22 | Example workflows in `drift skill` | 3 | Modify → todo → reset transcript |
+| 23 | `drift validate` semantic pass | 1 | Token-overlap heuristic between spec and marker code |
+| 24 | Relativize `drift.pin` paths | 1 | Store relative paths, document resolution rule |
 
-| Updated specs | File |
-|---|---|
-| `cli.reset_format` | cli.pin.xml |
-| `cli.dispatch` | cli.pin.xml |
-| `cli.help` | cli.pin.xml |
-| `cli.format_todo` | cli.pin.xml |
-| `cli.list_format` | cli.pin.xml |
-| `orch.reset` | orchestrator.pin.xml |
-| `orch.reconcile_specs` | orchestrator.pin.xml |
-| `orch.reconcile_markers` | orchestrator.pin.xml |
-| `core.scan_coverage` | core.pin.xml |
-| `core.collapse` | core.pin.xml |
-| `core.edge_unchecked` | core.pin.xml |
-| `core.todo_action` | core.pin.xml |
+### Design decisions (to be discussed before implementation)
 
-| New markers | File | Spec linked to |
-|---|---|---|
-| `sidfmt` | scanner.go | scanner.spec_id_format |
-| `midfmt` | scanner.go | scanner.marker_id_format |
-| `cdeld` | core.go | core.deleted_drift |
-| `crorph` | cli.go | cli.reset_orphan |
+> The following design questions need to be resolved before implementation begins. Each is tagged with the recommendation it affects.
 
-#### Implementation order
+#### D1: Hash model rework (recommendation #1)
 
-1. ID format validation (scanner.go + scanner.pin.xml) — simplest, no dependencies
-2. Stale entry handling (reconciler + buildScan + core) — the core behavior change
-3. Orphan reset (orchestrator + cli) — depends on #2
-4. Help/skill updates (help.txt, skill.md) — no dependencies
-5. Fixtures (drop setup.sh, add drift.pin + go.mod) — independent
-6. Rebuild drift.pin — after all code changes
-7. Tests + vet + gofmt — verify
-8. Commit
-9. Re-run evals
+The current model hashes the 10 lines following the marker line. Two failure modes:
+- **Window bleed (run 3, corrected):** Markers in the drift-detection fixture are ~3 lines apart (`add_func` at line 9, `sub_func` at line 12, `mul_func` at line 15, `div_func` at line 18). The 10-line window means `sub_func` hashes lines 13–22, which extends into `div_func`'s body. When the subject modifies `div` to handle negative zero, `sub_func`'s and `mul_func`'s hashes change too — spurious drift on untouched code. *(Note: the original synthesis misattributed this to "import shifting the window." That was wrong — the scanner finds markers by regex and hashes content after the marker line, so the marker and its window move together. The real cause is overlapping windows.)*
+- **Coarse placement / false "in sync" (run 5):** A marker placed at `game.go:170` (above the deal block) has a 10-line window covering lines 170–180. The actual `bettingRound` function is at line 252. Three real edits to betting logic at lines 215, 230, 254 all fall outside any marker's window. → Drift silently missed.
+
+Options:
+
+- **(A) Hash to end of enclosing block/function.** Scanner detects the end of the enclosing `{}` block (or equivalent indentation block for Python) and hashes from marker line to block end. Pros: captures the real implementation. Cons: language-specific parsing, complexity.
+- **(B) Hash to next marker or EOF.** Hash from marker line to the next marker line (or end of file). Pros: language-agnostic, simple. Cons: one marker per function assumed; if two markers are in the same function, the first only gets a partial region.
+- **(C) Explicit `fn=` annotation on markers.** Marker syntax: `// D! id=betting fn=bettingRound`. Scanner finds the function by name and hashes its full body. Pros: precise, user-controlled. Cons: requires language-specific function-finding, extra marker syntax.
+- **(D) Configurable window size.** Let users set the window (e.g. `// D! id=betting lines=40`). Pros: simple, language-agnostic. Cons: doesn't solve coarse placement, just makes it tunable.
+- **(E) Hybrid: default to next-marker-or-EOF, with optional `fn=` override.** Pros: simple default, escape hatch for precision. Cons: two modes to reason about.
+
+**Questions**:
+- Should we support multiple languages (Go, Python, JS) or Go-only for now?
+- Is block-boundary detection feasible without a full parser/AST?
+- Should the hash window be stored in `drift.pin` (so changes to the window are themselves drift)?
+
+#### D2: `drift diff` — what to show (recommendation #2)
+
+`drift diff <marker|spec>` should show what changed. Options for what to display:
+
+- **(A) Old vs. new hash only.** Simple but not very useful.
+- **(B) Old vs. new content (the hashed region).** Requires storing the old content or old hash + re-reading current. Since we only store the hash, we'd need to store the old content snapshot somewhere.
+- **(C) A unified diff of the hashed region.** Requires storing old content.
+- **(D) Just show the current hashed region + the current spec text side by side.** No historical comparison — "here's what the marker covers, here's what the spec says." Lets the agent judge alignment.
+
+**Storage question**: If we want historical comparison (B/C), we need to store the old content in `drift.pin` (or a snapshot file). This bloats the state file. Alternatively, `drift diff` could just show current content (D) and let the agent compare to git.
+
+#### D3: Spec text in `drift list` (recommendation #3)
+
+Currently `drift list` shows: `marker → spec  [synced]  file:line`
+
+Options:
+- **(A) Add spec text as a third column.** Could be long; needs truncation.
+- **(B) Add a `--verbose` flag that includes spec text.** Default stays compact.
+- **(C) Replace `drift list` output entirely with a richer format.** Breaking change.
+
+Should marker code context (first line after marker) also be shown?
+
+#### D4: `line="0"` for specs (recommendation #4)
+
+Specs are stored with `line="0"` and shown as `:0` in `drift list`. Options:
+- **(A) Record the real `<spec>` element line number in the XML file.** Requires scanner to track line numbers for specs (it currently doesn't).
+- **(B) Drop the `:line` suffix for specs entirely.** Specs don't have meaningful line numbers (their content is what matters, not their position).
+- **(C) Show the spec file path without line number.** e.g. `core.pin.xml` instead of `core.pin.xml:0`.
+
+#### D5: `drift lint` placement check (recommendation #5)
+
+Warn when a marker's hashed window contains no `func`/`class`/`def` line. Options:
+- **(A) Run automatically on `drift link`.** Warn at link time if placement looks wrong.
+- **(B) Separate `drift lint` command.** Run on demand.
+- **(C) Both**: warn on link + standalone command for full audit.
+
+What heuristics?
+- No `func`/`class`/`def`/`fn`/`function`/`def` keyword within the hashed window.
+- Marker is more than N lines from the next declaration.
+- Two markers within the same 10-line window (overlapping regions).
+
+#### D6: `drift inspect` / `drift show` (recommendation #6)
+
+A read-only command to inspect a single marker or spec. Options:
+- **(A) `drift show <marker|spec>`** — print hashed region + linked spec text + link state.
+- **(B) `drift inspect <marker|spec>`** — same.
+- **(C) Fold into `drift list --verbose <marker|spec>`** — no new command.
+
+Is this redundant with `drift diff` (D2)? If `drift diff` shows current content (option D), then `inspect` is basically `diff` when there's no drift.
+
+#### D7: `--json` output (recommendation #7)
+
+Add `--json` to `drift todo`, `drift list`, `drift link`. Questions:
+- What schema? Need to design JSON structures for each command's output.
+- Should `drift todo --json` include exit code semantics (non-zero on drift)?
+- Should this be a global flag or per-command?
+
+#### D8: `drift check` / `drift verify` (recommendation #8)
+
+A command for CI / agent gating that asserts everything is healthy. Options:
+- **(A) `drift check`** — asserts all linked, no orphans, all in sync. Non-zero exit on failure.
+- **(B) `drift verify`** — same.
+- **(C) Just make `drift todo` exit non-zero on drift.** No new command.
+
+Is `drift check` different from `drift todo`? If `todo --json` has exit codes, maybe `check` is just `todo` with machine-readable exit semantics.
+
+#### D9: `drift reset --all` (recommendation #9)
+
+Bulk resolve all drifted edges. Safety question:
+- **(A) `drift reset --all`** — resolves all drifted edges without prompting.
+- **(B) `drift reset --all --dry-run`** — preview first, then confirm.
+- **(C) Interactive prompt** — list all drifted edges and ask y/n.
+
+Risk: bulk reset can mask drift that should be investigated. Should `--all` require that the agent has at least run `drift todo` first?
+
+#### D10: `drift reset` confirmation (recommendation #10)
+
+Currently `drift reset` emits nothing on success. Options:
+- **(A) Print `✓ Resolved: <marker> → <spec>. Baseline updated.`**
+- **(B) Print just `OK` or `Resolved.`**
+- **(C) Print the updated drift.pin state summary.**
+
+Also: clarify "collapses baselines" in `drift skill` — what does it actually mean? (Answer: rewrites the baseline hash to the current hash and clears the resolution entry.)
+
+### Implementation order (proposed)
+
+> To be finalized after design discussion.
+
+1. **Hash model rework** (D1) — foundational, affects everything downstream
+2. **`drift diff`** (D2) — depends on new hash model for content display
+3. **Spec text in `drift list`** (D3) — independent
+4. **Fix `line="0"`** (D4) — independent, small
+5. **`drift lint`** (D5) — depends on hash model (needs to know what's in the window)
+6. **`drift inspect`** (D6) — depends on hash model (shows hashed region)
+7. **`--json` output** (D7) — independent
+8. **`drift check`** (D8) — independent
+9. **`drift reset --all` + confirmation** (D9, D10) — independent
+10. **Document edge cases in `drift skill`** (D11) — after all above, captures the new behavior
+11. Low-priority items (D12-D24) — batch after high/medium
 
 ## Future steel cables
 

@@ -1,5 +1,7 @@
 # Observation 0006 — phase5-full
 
+> **Correction (post-analysis):** The original synthesis misattributed run 3's cascade drift to "an import shift moving the 10-line hash windows." This is mechanically wrong. The scanner discovers markers by regex and hashes the 10 lines *after* the marker line — the marker and its window move together with the code, so inserting lines above does not change the hash. The actual cause is **window bleed**: markers in the drift-detection fixture are ~3 lines apart, but the window is 10 lines, so `sub_func`'s window (lines 13–22) and `mul_func`'s window (lines 16–25) extend into `div_func`'s body. When the subject modifies `div` to handle negative zero, those overlapping windows pick up the change, producing spurious drift on `sub_func` and `mul_func`. The symptom (collateral drift on untouched markers) is real and correctly identified; the mechanism was wrong. This strengthens the case for "hash to next marker" — it would eliminate window bleed entirely with zero parsing logic.
+
 Date: Thu Jul 16 2026
 Runs:
 - `/workspaces/filament/eval/runs/phase5-full-0`
@@ -12,7 +14,7 @@ Runs:
 ## Known issues
 
 - **Run 5 (phase5-full-5) — incomplete debrief artifact.** The subject hit the harness's 40-step cap and never produced the required `self-debrief.md`; the final assistant message contained a capable retrospective but the file was absent. The judge scored the run's driftpin usage as valid (all tool commands correct, workspace in sync), but downgraded the universal "self-debrief quality" criterion to FAIL. Because no subject-authored debrief exists, run 5's UX findings below are drawn solely from the judge's transcript observations rather than the subject's self-report; treat them as somewhat lower-confidence than findings from runs 0–4. The run is **not excluded** from convergence — only the debrief-derived signal is.
-- **Run 3 (phase5-full-3) — positional cascade drift is a tool property, not a run compromise.** Adding a `math` import shifted the 10-line hash windows of unrelated `sub_func`/`mul_func` markers, producing spurious drift the subject had to reset. This is a reproducible tooling defect surfaced by the run; it is recorded as a convergent finding, not a taint.
+- **Run 3 (phase5-full-3) — window-bleed cascade drift is a tool property, not a run compromise.** Markers in the fixture are ~3 lines apart but the 10-line hash window extends into adjacent markers' code. When the subject modified `div_func` to handle negative zero, `sub_func`'s and `mul_func`'s overlapping windows picked up the change, producing spurious drift. This is a reproducible tooling defect surfaced by the run; it is recorded as a convergent finding, not a taint.
 - **No sandbox escapes, tainted runs, or methodology problems** were identified in any of the six runs. All workspaces verified independently by the judge at evaluation time.
 
 ## Convergent findings
@@ -29,7 +31,7 @@ Runs:
 | Clarify spec-ID vs. marker-ID qualification convention (`main.palindrome` vs. `palindrome_func`; local id has no dot inside `<module>`) | 0, 1, 4 | Medium |
 | Add `drift reset --all` / bulk resolve for multi-edge refactors (subjects reset drift edge-by-edge) | 2, 3 | Medium |
 | Improve `drift reset` UX: emit a confirmation line on success and/or clarify "collapses baselines" semantics in `skill` (currently silent + ambiguous) | 2, 3 | Medium |
-| Replace/augment fixed 10-line hash window with a semantic region (function body / next decl boundary) — positional cascade drift (run 3) and marker-coarseness false-"in sync" (run 5) both stem from this | 3, 5 | High |
+| Replace/augment fixed 10-line hash window with a semantic region (next-marker boundary / function body / next decl boundary) — window-bleed cascade drift (run 3) and marker-coarseness false-"in sync" (run 5) both stem from this | 3, 5 | High |
 
 ## Divergent findings
 
@@ -40,7 +42,7 @@ Runs:
 - **Run 1** — Minor debrief inaccuracy: claimed the spec path was a `/tmp/tmp…` leftover while the final `drift.pin` held the correct path; subject did not re-check the file after the fix.
 - **Run 2** — `drift reset` emits **nothing on success**, forcing a redundant `drift todo` round-trip. Confirmed independently by the judge. (Folded into the convergent "reset UX" theme but the silent-stdout detail is run-2-specific.)
 - **Run 2** — Suggested a `drift verify` hook that gates `reset` behind a build/test check; judged low priority and risks over-coupling to language toolchains.
-- **Run 3** — Sharp observation that the task's "no other markers affected" success criterion is in **tension** with the tool's positional drift notion — unrelated markers *do* get flagged. Unique framing.
+- **Run 3** — Sharp observation that the task's "no other markers affected" success criterion is in **tension** with the tool's window-bleed drift — unrelated markers *do* get flagged because their 10-line windows overlap the changed code. Unique framing.
 - **Run 3** — Asked for `--dry-run` on `drift reset` (preview which baselines will change). Not raised elsewhere.
 - **Run 3** — Suggested `drift check`/`drift status` as an alias for `todo` ("status" is more conventional for git-fluent users).
 - **Run 4** — Adjacent-marker placement (`thread_safety`@line 22, `shorten_type`@line 23) felt "fragile"; subject unsure whether overlapping 10-line windows are independent (they were). Unique edge case.
@@ -56,7 +58,7 @@ Runs:
 
 ## Prioritized recommendations (consolidated)
 
-1. **[High]** Replace or augment the fixed 10-line hash window with a semantic region (hash to end of enclosing function/block, or `// D! id=… fn=name` anchoring) — flagged by runs 3 (positional cascade drift) and 5 (marker-coarseness false "in sync" on real edits). This is the tool's largest correctness gap: it can silently miss the very drift it exists to catch.
+1. **[High]** Replace or augment the fixed 10-line hash window with a semantic region (hash to next marker, or to end of enclosing function/block, or `// D! id=… fn=name` anchoring) — flagged by runs 3 (window-bleed cascade drift: overlapping 10-line windows pick up changes to adjacent markers' code) and 5 (marker-coarseness false "in sync" on real edits: markers placed tens of lines from the implementing logic, so real changes fall outside the window). This is the tool's largest correctness gap: it can silently miss the very drift it exists to catch, and can also silently produce it on untouched code.
 2. **[High]** Add `drift diff <marker|spec>` (or a verbose `drift todo`) showing old-vs-new hash and the changed 10-line content / spec text — runs 0, 1, 2, 3, 4. Highest-frequency request; directly serves the core "verify alignment" loop.
 3. **[High]** Show spec description text inline in `drift list` (or `drift list --verbose` / `drift links --verbose`) — runs 0, 1, 4, 5. Closes the consistent-but-wrong-link blind spot that hash-based `todo` cannot see.
 4. **[High]** Fix or document the `line="0"` reporting for specs in `drift.pin` and `drift list` — runs 0, 3, 4. Either record the real `<spec>` element line or drop the `:0` suffix for specs.
@@ -83,11 +85,11 @@ Runs:
 
 ## Next steps
 
-The consolidated evidence points to one overriding issue: **driftpin's drift detection is not robust to marker placement, and the tool gives agents little help placing markers well or understanding *what* drifted.** Two of six runs (3 and 5) demonstrated the tool either over-reporting drift (positional cascade from an import shift) or silently **missing** real drift (markers placed tens of lines from the implementing logic, with three material edits producing "in sync"). Both failure modes share a root cause: the fixed 10-line positional hash window.
+The consolidated evidence points to one overriding issue: **driftpin's drift detection is not robust to marker placement, and the tool gives agents little help placing markers well or understanding *what* drifted.** Two of six runs (3 and 5) demonstrated the tool either over-reporting drift (window bleed: overlapping 10-line windows pick up changes to adjacent markers' code) or silently **missing** real drift (markers placed tens of lines from the implementing logic, with three material edits producing "in sync"). Both failure modes share a root cause: the fixed 10-line hash window.
 
 The tool authors should, in priority order:
 
-1. **Rework the hashing model** (recommendation #1) so a marker anchors to a semantic region — either to the end of the enclosing function/declaration, or via an explicit `fn=`/`scope=` annotation. This is the single change that would have prevented the most serious observed defect (run 5's false "in sync" on real betting/draw edits).
+1. **Rework the hashing model** (recommendation #1) so a marker anchors to a semantic region — either hash to the next marker line (simplest, language-agnostic, eliminates window bleed entirely), or to the end of the enclosing function/declaration, or via an explicit `fn=`/`scope=` annotation. This is the single change that would have prevented both the most serious observed defect (run 5's false "in sync" on real betting/draw edits) and the most annoying one (run 3's window-bleed cascade drift on untouched `sub_func`/`mul_func`).
 2. **Add `drift diff` and inline spec text in `drift list`** (#2, #3). Together these turn the tool from a binary "drifted / not drifted" signal into a reviewable change summary, which is what every subject ultimately needed and several had to reconstruct by hand from `drift.pin`.
 3. **Add a placement/lint check** (#5) so coarse placement is flagged at link time rather than discovered (or, worse, never discovered) after a refactor.
 4. **Fix the `line="0"` spec reporting** (#4) — small, but it was independently flagged in three runs and reads as a bug to first-time users.
