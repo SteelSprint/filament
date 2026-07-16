@@ -1,0 +1,19 @@
+func specHasAllEdgesChecked(
+	specID string,
+	links []Link,
+	specsByID map[string]*Spec,
+	markersByID map[string]*Marker,
+	resolutionStateByEdge map[string]ResolutionState,
+	scan Scan,
+) bool {
+	for _, link := range links {
+		if link.SpecID != specID {
+			continue
+		}
+		if edgeIsUnchecked(link, specsByID, markersByID, resolutionStateByEdge, scan) {
+			return false
+		}
+	}
+	return true
+}
+

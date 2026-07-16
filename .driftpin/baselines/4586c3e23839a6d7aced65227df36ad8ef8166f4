@@ -1,0 +1,21 @@
+func pruneResolutionEntriesForCollapsedMarker(
+	resolutionStateByEdge map[string]ResolutionState,
+	collapsedMarkerID string,
+	links []Link,
+	specsByID map[string]*Spec,
+	scan Scan,
+) {
+	for _, link := range links {
+		if link.MarkerID != collapsedMarkerID {
+			continue
+		}
+		edgeKey := resolutionEdgeKey(link.MarkerID, link.SpecID)
+		if _, ok := resolutionStateByEdge[edgeKey]; !ok {
+			continue
+		}
+		if spec := specsByID[link.SpecID]; spec != nil && spec.Hash == scan.SpecHashes[link.SpecID] {
+			delete(resolutionStateByEdge, edgeKey)
+		}
+	}
+}
+

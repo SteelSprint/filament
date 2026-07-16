@@ -337,6 +337,7 @@ func collapseResolvedNodes(
 
 // D! id=ccol range-end
 
+// D! id=mchk range-start
 func markerHasAllEdgesChecked(
 	markerID string,
 	links []Link,
@@ -356,6 +357,9 @@ func markerHasAllEdgesChecked(
 	return true
 }
 
+// D! id=mchk range-end
+
+// D! id=schk range-start
 func specHasAllEdgesChecked(
 	specID string,
 	links []Link,
@@ -374,6 +378,8 @@ func specHasAllEdgesChecked(
 	}
 	return true
 }
+
+// D! id=schk range-end
 
 // D! id=cedg range-start
 func edgeIsUnchecked(
@@ -408,6 +414,7 @@ func edgeIsUnchecked(
 
 // D! id=cedg range-end
 
+// D! id=pmrk range-start
 func pruneResolutionEntriesForCollapsedMarker(
 	resolutionStateByEdge map[string]ResolutionState,
 	collapsedMarkerID string,
@@ -429,6 +436,9 @@ func pruneResolutionEntriesForCollapsedMarker(
 	}
 }
 
+// D! id=pmrk range-end
+
+// D! id=pspc range-start
 func pruneResolutionEntriesForCollapsedSpec(
 	resolutionStateByEdge map[string]ResolutionState,
 	collapsedSpecID string,
@@ -449,6 +459,8 @@ func pruneResolutionEntriesForCollapsedSpec(
 		}
 	}
 }
+
+// D! id=pspc range-end
 
 // D! id=cdeld range-start
 func computeTodoList(
