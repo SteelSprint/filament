@@ -110,10 +110,10 @@ func TestFileStateStoreLoadMissing(t *testing.T) {
 func TestFileStateStoreLoadMalformed(t *testing.T) {
 	t.Run("malformed_xml_returns_error", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(dir, ".driftpin"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(dir, ".drift"), 0755); err != nil {
 			t.Fatal(err)
 		}
-		stateFilePath := filepath.Join(dir, ".driftpin", "state.xml")
+		stateFilePath := filepath.Join(dir, ".drift", "state.xml")
 		os.WriteFile(stateFilePath, []byte("not valid xml <"), 0644)
 		store := statestore.NewFileStateStore(dir)
 		_, err := store.Load()
@@ -153,11 +153,11 @@ func TestFileStateStoreSaveEmptyCreatesFile(t *testing.T) {
 		err := store.Save(statestore.State{})
 		testutil.AssertNoError(t, err)
 
-		stateFilePath := filepath.Join(dir, ".driftpin", "state.xml")
+		stateFilePath := filepath.Join(dir, ".drift", "state.xml")
 		if _, err := os.Stat(stateFilePath); os.IsNotExist(err) {
 			t.Fatalf(".drift/state.xml not created")
 		}
-		baselinesDir := filepath.Join(dir, ".driftpin", "baselines")
+		baselinesDir := filepath.Join(dir, ".drift", "baselines")
 		if info, err := os.Stat(baselinesDir); err != nil || !info.IsDir() {
 			t.Fatalf(".drift/baselines/ not created")
 		}

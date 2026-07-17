@@ -34,7 +34,7 @@ func Run(args []string, dir string) (string, int) {
 
 	stateStore := statestore.NewFileStateStore(dir)
 	scanner := scanner.NewFileScanner(dir)
-	baselines := statestore.NewBaselineStore(filepath.Join(dir, ".driftpin", "baselines"))
+	baselines := statestore.NewBaselineStore(filepath.Join(dir, ".drift", "baselines"))
 	orch := orchestrator.NewOrchestrator(stateStore, scanner, baselines)
 
 	switch args[0] {

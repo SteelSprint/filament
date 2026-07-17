@@ -10,7 +10,7 @@ import (
 )
 
 func TestBaselineStoreWriteReadRoundTrip(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 
 	content := "line1\nline2\nline3\n"
@@ -35,7 +35,7 @@ func TestBaselineStoreWriteReadRoundTrip(t *testing.T) {
 }
 
 func TestBaselineStoreWriteDedup(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 
 	content := "same\n"
@@ -56,7 +56,7 @@ func TestBaselineStoreWriteDedup(t *testing.T) {
 }
 
 func TestBaselineStoreReadMissing(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 
 	if _, err := os.Stat(dir); err == nil {
@@ -68,7 +68,7 @@ func TestBaselineStoreReadMissing(t *testing.T) {
 }
 
 func TestBaselineStoreWriteHashMismatch(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 
 	content := "actual\n"
@@ -84,7 +84,7 @@ func TestBaselineStoreWriteHashMismatch(t *testing.T) {
 }
 
 func TestBaselineStoreDelete(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 
 	content := "toDelete\n"
@@ -101,7 +101,7 @@ func TestBaselineStoreDelete(t *testing.T) {
 }
 
 func TestBaselineStoreDeleteMissing(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), ".driftpin", "baselines")
+	dir := filepath.Join(t.TempDir(), ".drift", "baselines")
 	store := statestore.NewBaselineStore(dir)
 	if err := store.Delete("neverExisted"); err != nil {
 		t.Fatalf("Delete missing file should not error: %v", err)

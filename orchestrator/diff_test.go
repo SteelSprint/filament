@@ -43,7 +43,7 @@ func f() {
 
 	stateStore := statestore.NewFileStateStore(dir)
 	sc := scanner.NewFileScanner(dir)
-	baselines := statestore.NewBaselineStore(filepath.Join(dir, ".driftpin", "baselines"))
+	baselines := statestore.NewBaselineStore(filepath.Join(dir, ".drift", "baselines"))
 	orch = orchestrator.NewOrchestrator(stateStore, sc, baselines)
 
 	if err := orch.Init(); err != nil {
@@ -71,7 +71,7 @@ func TestOrchestratorLinkWritesBaselines(t *testing.T) {
 		spec := testutil.FindSpecInEvaluatedState(t, todo, "main.s1")
 		marker := testutil.FindMarkerInEvaluatedState(t, todo, "m1")
 
-		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".driftpin", "baselines"))
+		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".drift", "baselines"))
 		if _, ok := baselines.Read(spec.Hash); !ok {
 			t.Fatalf("spec baseline file missing for hash %s", spec.Hash)
 		}
@@ -189,7 +189,7 @@ func f() {}
 		// Use a baseline store in a dir that won't have files (simulate pre-migration).
 		stateStore := statestore.NewFileStateStore(dir)
 		sc := scanner.NewFileScanner(dir)
-		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".driftpin", "baselines"))
+		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".drift", "baselines"))
 		orch := orchestrator.NewOrchestrator(stateStore, sc, baselines)
 
 		if err := orch.Init(); err != nil {
@@ -307,7 +307,7 @@ func TestOrchestratorResetWritesNewBaselines(t *testing.T) {
 
 		// New baseline file should exist at the new hash.
 		spec := testutil.FindSpecInEvaluatedState(t, todoAfter, "main.s1")
-		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".driftpin", "baselines"))
+		baselines := statestore.NewBaselineStore(filepath.Join(dir, ".drift", "baselines"))
 		content, ok := baselines.Read(spec.Hash)
 		if !ok {
 			t.Fatalf("new spec baseline missing for hash %s", spec.Hash)

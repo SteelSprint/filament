@@ -167,7 +167,7 @@ func f() {}
 		cli.Run([]string{"link", "m1", "main.s1"}, dir)
 
 		// Delete baseline files to simulate pre-migration.
-		baselinesDir := filepath.Join(dir, ".driftpin", "baselines")
+		baselinesDir := filepath.Join(dir, ".drift", "baselines")
 		entries, _ := os.ReadDir(baselinesDir)
 		for _, e := range entries {
 			os.Remove(filepath.Join(baselinesDir, e.Name()))

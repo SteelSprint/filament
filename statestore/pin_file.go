@@ -39,11 +39,11 @@ func (s *FileStateStore) Dir() string {
 }
 
 func (s *FileStateStore) statePath() string {
-	return filepath.Join(s.dir, ".driftpin", "state.xml")
+	return filepath.Join(s.dir, ".drift", "state.xml")
 }
 
 func (s *FileStateStore) baselinesDir() string {
-	return filepath.Join(s.dir, ".driftpin", "baselines")
+	return filepath.Join(s.dir, ".drift", "baselines")
 }
 
 type stateFileXML struct {
