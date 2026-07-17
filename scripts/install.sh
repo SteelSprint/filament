@@ -88,11 +88,16 @@ if [ -n "${DRIFT_VERSION:-}" ]; then
 	TAG="$DRIFT_VERSION"
 else
 	echo "Fetching latest release..."
-	TAG="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-		| grep -m1 '"tag_name"' \
-		| sed -E 's/.*"([^"]+)".*/\1/')"
+	# fetch the full API response first, then parse — avoids curl SIGPIPE
+	# from `grep -m1` exiting early in a pipeline (breaks under set -o pipefail)
+	RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")" \
+		|| err "could not fetch latest release info from GitHub API"
+	TAG="$(printf '%s' "$RELEASE_JSON" \
+		| grep '"tag_name"' \
+		| sed -E 's/.*"([^"]+)".*/\1/' \
+		| head -1)"
 	if [ -z "$TAG" ]; then
-		err "could not determine latest release tag from GitHub API"
+		err "could not determine latest release tag from GitHub API response"
 	fi
 fi
 
