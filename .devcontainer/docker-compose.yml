@@ -11,9 +11,9 @@ services:
       dockerfile: Dockerfile
     labels:
       - drift.role=devcontainer
-    env_file:
-      # Ensure that the variables in .env match the same variables in devcontainer.json
-      - .env
+    # env_file:
+    #   # Ensure that the variables in .env match the same variables in devcontainer.json
+    #   - .env
 
     volumes:
       - ..:/workspaces/drift:cached
@@ -24,6 +24,6 @@ services:
     command: sleep infinity
 
     # Runs app on the same network as the database container, allows "forwardPorts" in devcontainer.json function.
-    network_mode: service:db
+    # network_mode: service:db
     # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
