@@ -8,17 +8,29 @@
 
 ## Install
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SteelSprint/Drift/main/scripts/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/SteelSprint/Drift/main/scripts/install.ps1 | iex
 ```
 
 Or pin a version:
 
 ```bash
+# macOS / Linux
 DRIFT_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/SteelSprint/Drift/main/scripts/install.sh | bash
+
+# Windows
+$env:DRIFT_VERSION='v1.0.0'; irm https://raw.githubusercontent.com/SteelSprint/Drift/main/scripts/install.ps1 | iex
 ```
 
-Installs to `~/.local/bin/drift` (override with `DESTDIR`). Add `~/.local/bin` to your `PATH` if needed. To build from source instead: `make build` (or `go build -o drift ./cmd/drift`).
+Installs to `~/.local/bin/drift` (macOS/Linux) or `%USERPROFILE%\.local\bin\drift.exe` (Windows); override with `DESTDIR`. Add it to your `PATH` if needed. To build from source instead: `make build` (or `go build -o drift ./cmd/drift`).
 
 ## Quickstart
 
