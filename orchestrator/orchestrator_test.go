@@ -46,6 +46,10 @@ func (f *fakeScanner) Scan() (scanner.ScanResult, error) {
 	return f.result, nil
 }
 
+func (f *fakeScanner) Dir() string {
+	return ""
+}
+
 func scanResultFromSpecsMarkers(specs []core.Spec, markers []core.Marker) scanner.ScanResult {
 	return scanner.ScanResult{
 		Specs:   specs,

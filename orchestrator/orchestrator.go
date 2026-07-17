@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"drift/core"
@@ -67,17 +68,25 @@ func (o *Orchestrator) writeBaseline(scannedHash, filepath, specID string, start
 	if o.baselines == nil {
 		return nil
 	}
+	absPath := o.resolvePath(filepath)
 	var content string
 	var err error
 	if isSpec {
-		content, err = scanner.ReadSpecContent(filepath, specID)
+		content, err = scanner.ReadSpecContent(absPath, specID)
 	} else {
-		content, err = scanner.ReadMarkerContent(filepath, startLine, endLine)
+		content, err = scanner.ReadMarkerContent(absPath, startLine, endLine)
 	}
 	if err != nil {
 		return nil // entity may be deleted mid-operation; skip silently
 	}
 	return o.baselines.Write(scannedHash, content)
+}
+
+func (o *Orchestrator) resolvePath(p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(o.scanner.Dir(), p)
 }
 
 // D! id=oinit range-start
@@ -573,7 +582,7 @@ func (o *Orchestrator) Diff(markerID, specID string) (DiffResult, error) {
 		Deleted:      spec.Deleted,
 	}
 	if !spec.Deleted {
-		if content, err := scanner.ReadSpecContent(spec.Filepath, spec.ID); err == nil {
+		if content, err := scanner.ReadSpecContent(o.resolvePath(spec.Filepath), spec.ID); err == nil {
 			result.Spec.Current = content
 		}
 	}
@@ -593,7 +602,7 @@ func (o *Orchestrator) Diff(markerID, specID string) (DiffResult, error) {
 		Deleted:      marker.Deleted,
 	}
 	if !marker.Deleted {
-		if content, err := scanner.ReadMarkerContent(marker.Filepath, marker.LineNumber, marker.EndLineNumber); err == nil {
+		if content, err := scanner.ReadMarkerContent(o.resolvePath(marker.Filepath), marker.LineNumber, marker.EndLineNumber); err == nil {
 			result.Marker.Current = content
 		}
 	}

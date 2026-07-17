@@ -1,0 +1,11 @@
+	case "list":
+		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
+			return "Usage: drift list [--verbose]\n\nShow all specs, markers, links, and sync state.\n--verbose: include spec text and marker content preview.", 0
+		}
+		verbose := len(args) >= 2 && args[1] == "--verbose"
+		state, err := orch.Todo()
+		if err != nil {
+			return err.Error(), 1
+		}
+		return formatList(state, dir, verbose), 0
+

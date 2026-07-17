@@ -104,8 +104,8 @@ func TestScannerSpecDiscovery(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected spec main.validate_input, not found. specs: %+v", result.Specs)
 		}
-		if spec.Filepath != filepath.Join(dir, "main.drift.xml") {
-			t.Fatalf("filepath = %q, want %q", spec.Filepath, filepath.Join(dir, "main.drift.xml"))
+		if spec.Filepath != "main.drift.xml" {
+			t.Fatalf("filepath = %q, want %q", spec.Filepath, "main.drift.xml")
 		}
 		if spec.Hash == "" {
 			t.Fatalf("expected non-empty hash")
@@ -132,8 +132,8 @@ func TestScannerSpecDiscovery(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected spec core.validate, not found. specs: %+v", result.Specs)
 		}
-		if spec.Filepath != filepath.Join(dir, "core.drift.xml") {
-			t.Fatalf("filepath = %q, want %q", spec.Filepath, filepath.Join(dir, "core.drift.xml"))
+		if spec.Filepath != "core.drift.xml" {
+			t.Fatalf("filepath = %q, want %q", spec.Filepath, "core.drift.xml")
 		}
 	})
 
@@ -457,8 +457,8 @@ func handleRequest() {
 		if !ok {
 			t.Fatalf("expected marker abc123, not found")
 		}
-		if marker.Filepath != filepath.Join(dir, "main.go") {
-			t.Fatalf("filepath = %q, want %q", marker.Filepath, filepath.Join(dir, "main.go"))
+		if marker.Filepath != "main.go" {
+			t.Fatalf("filepath = %q, want %q", marker.Filepath, "main.go")
 		}
 		if marker.Hash == "" {
 			t.Fatalf("expected non-empty hash")

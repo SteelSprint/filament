@@ -122,7 +122,7 @@ func Run(args []string, dir string) (string, int) {
 		if err != nil {
 			return err.Error(), 1
 		}
-		return formatList(state, verbose), 0
+		return formatList(state, dir, verbose), 0
 
 	// D! id=clst range-end
 	// D! id=cskill range-start
@@ -141,7 +141,7 @@ func Run(args []string, dir string) (string, int) {
 		if err != nil {
 			return err.Error(), 1
 		}
-		return formatShow(state, args[1])
+		return formatShow(state, dir, args[1])
 
 	// D! id=cshow range-end
 	// D! id=cdiff range-start
@@ -282,7 +282,7 @@ func formatTodo(state core.EvaluatedState) string {
 // D! id=cfmt range-end
 
 // D! id=ofmtl range-start
-func formatList(state core.EvaluatedState, verbose bool) string {
+func formatList(state core.EvaluatedState, dir string, verbose bool) string {
 	if len(state.Specs) == 0 && len(state.Markers) == 0 {
 		return "No specs or markers registered.\nRun `drift init` to get started, then create spec files (*.drift.xml) and place " + markerSyntax + " markers in your code."
 	}
@@ -315,7 +315,7 @@ func formatList(state core.EvaluatedState, verbose bool) string {
 		}
 		sb.WriteString(fmt.Sprintf("  %-30s %s%s\n", spec.ID, spec.Filepath, linkFlag))
 		if verbose && !spec.Deleted {
-			content, err := readSpecContent(spec.Filepath, spec.ID)
+			content, err := readSpecContent(dir, spec.Filepath, spec.ID)
 			if err == nil && len(content) > 0 {
 				preview := content
 				if len(preview) > 80 {
@@ -340,7 +340,7 @@ func formatList(state core.EvaluatedState, verbose bool) string {
 		}
 		sb.WriteString(fmt.Sprintf("  %-30s %s:%d-%d%s\n", marker.ID, marker.Filepath, marker.LineNumber, marker.EndLineNumber, linkFlag))
 		if verbose && !marker.Deleted {
-			content, err := readMarkerContent(marker.Filepath, marker.LineNumber, marker.EndLineNumber)
+			content, err := readMarkerContent(dir, marker.Filepath, marker.LineNumber, marker.EndLineNumber)
 			if err == nil && len(content) > 0 {
 				firstLine := strings.Split(content, "\n")[0]
 				if len(firstLine) > 80 {
@@ -385,16 +385,16 @@ func sortMarkersByID(markers []core.Marker) {
 	}
 }
 
-func formatShow(state core.EvaluatedState, id string) (string, int) {
+func formatShow(state core.EvaluatedState, dir, id string) (string, int) {
 	isSpec := strings.Contains(id, ".")
 
 	if isSpec {
-		return formatShowSpec(state, id)
+		return formatShowSpec(state, dir, id)
 	}
-	return formatShowMarker(state, id)
+	return formatShowMarker(state, dir, id)
 }
 
-func formatShowSpec(state core.EvaluatedState, specID string) (string, int) {
+func formatShowSpec(state core.EvaluatedState, dir, specID string) (string, int) {
 	var spec *core.Spec
 	for i := range state.Specs {
 		if state.Specs[i].ID == specID {
@@ -408,7 +408,7 @@ func formatShowSpec(state core.EvaluatedState, specID string) (string, int) {
 
 	var sb strings.Builder
 
-	content, err := readSpecContent(spec.Filepath, spec.ID)
+	content, err := readSpecContent(dir, spec.Filepath, spec.ID)
 	if err != nil {
 		return fmt.Sprintf("error reading spec content: %s", err), 1
 	}
@@ -426,7 +426,7 @@ func formatShowSpec(state core.EvaluatedState, specID string) (string, int) {
 		for i := range state.Markers {
 			if state.Markers[i].ID == link.MarkerID {
 				m := &state.Markers[i]
-				markerContent, err := readMarkerContent(m.Filepath, m.LineNumber, m.EndLineNumber)
+				markerContent, err := readMarkerContent(dir, m.Filepath, m.LineNumber, m.EndLineNumber)
 				if err != nil {
 					continue
 				}
@@ -444,7 +444,7 @@ func formatShowSpec(state core.EvaluatedState, specID string) (string, int) {
 	return strings.TrimRight(sb.String(), "\n"), 0
 }
 
-func formatShowMarker(state core.EvaluatedState, markerID string) (string, int) {
+func formatShowMarker(state core.EvaluatedState, dir, markerID string) (string, int) {
 	var marker *core.Marker
 	for i := range state.Markers {
 		if state.Markers[i].ID == markerID {
@@ -465,7 +465,7 @@ func formatShowMarker(state core.EvaluatedState, markerID string) (string, int) 
 		for i := range state.Specs {
 			if state.Specs[i].ID == link.SpecID {
 				s := &state.Specs[i]
-				content, err := readSpecContent(s.Filepath, s.ID)
+				content, err := readSpecContent(dir, s.Filepath, s.ID)
 				if err != nil {
 					continue
 				}
@@ -479,7 +479,7 @@ func formatShowMarker(state core.EvaluatedState, markerID string) (string, int) 
 		}
 	}
 
-	markerContent, err := readMarkerContent(marker.Filepath, marker.LineNumber, marker.EndLineNumber)
+	markerContent, err := readMarkerContent(dir, marker.Filepath, marker.LineNumber, marker.EndLineNumber)
 	if err != nil {
 		return fmt.Sprintf("error reading marker content: %s", err), 1
 	}
@@ -493,12 +493,19 @@ func formatShowMarker(state core.EvaluatedState, markerID string) (string, int) 
 	return strings.TrimRight(sb.String(), "\n"), 0
 }
 
-func readSpecContent(filepath, specID string) (string, error) {
-	return scanner.ReadSpecContent(filepath, specID)
+func readSpecContent(dir, filepath, specID string) (string, error) {
+	return scanner.ReadSpecContent(resolvePath(dir, filepath), specID)
 }
 
-func readMarkerContent(filepath string, startLine, endLine int) (string, error) {
-	return scanner.ReadMarkerContent(filepath, startLine, endLine)
+func readMarkerContent(dir, filepath string, startLine, endLine int) (string, error) {
+	return scanner.ReadMarkerContent(resolvePath(dir, filepath), startLine, endLine)
+}
+
+func resolvePath(dir, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(dir, p)
 }
 
 // D! id=cdifffmt range-start

@@ -34,6 +34,7 @@ type ScanResult struct {
 
 type Scanner interface {
 	Scan() (ScanResult, error)
+	Dir() string
 }
 
 type FileScanner struct {
@@ -42,6 +43,10 @@ type FileScanner struct {
 
 func NewFileScanner(dir string) *FileScanner {
 	return &FileScanner{dir: dir}
+}
+
+func (s *FileScanner) Dir() string {
+	return s.dir
 }
 
 func (s *FileScanner) Scan() (ScanResult, error) {
@@ -92,6 +97,11 @@ func (s *FileScanner) scanSpecs() ([]core.Spec, error) {
 		seenNames:  make(map[string]string),
 		visitStack: nil,
 	}
+	absRoot, err := filepath.Abs(s.dir)
+	if err != nil {
+		return nil, err
+	}
+	loader.rootDir = absRoot
 	return loader.load(mainPath)
 }
 
@@ -102,6 +112,7 @@ type importLoader struct {
 	seenFiles  map[string]bool
 	seenNames  map[string]string
 	visitStack []string
+	rootDir    string
 }
 
 func (l *importLoader) load(absPath string) ([]core.Spec, error) {
@@ -207,7 +218,7 @@ func (l *importLoader) load(absPath string) ([]core.Spec, error) {
 			ID:         qualifiedID,
 			Module:     moduleName,
 			Hash:       hash,
-			Filepath:   absPath,
+			Filepath:   relPath(l.rootDir, absPath),
 			LineNumber: 0,
 		})
 	}
@@ -250,7 +261,7 @@ func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
 		if !codeExtensions[ext] {
 			return nil
 		}
-		fileMarkers, err := parseMarkerFile(path)
+		fileMarkers, err := parseMarkerFile(path, relPath)
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -280,7 +291,7 @@ type rawMarkerDecl struct {
 	index  int    // 0-indexed line position in file
 }
 
-func parseMarkerFile(path string) ([]core.Marker, error) {
+func parseMarkerFile(path, storePath string) ([]core.Marker, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -385,7 +396,7 @@ func parseMarkerFile(path string) ([]core.Marker, error) {
 		markers = append(markers, core.Marker{
 			ID:            id,
 			Hash:          hash,
-			Filepath:      path,
+			Filepath:      storePath,
 			LineNumber:    s.line,
 			EndLineNumber: e.line,
 		})
@@ -471,4 +482,12 @@ func (ig *driftIgnore) matches(relPath string, isDir bool) bool {
 		}
 	}
 	return false
+}
+
+func relPath(rootDir, absPath string) string {
+	rel, err := filepath.Rel(rootDir, absPath)
+	if err != nil {
+		return absPath
+	}
+	return filepath.ToSlash(rel)
 }

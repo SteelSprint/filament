@@ -1,0 +1,13 @@
+	case "show":
+		if len(args) >= 2 && (args[1] == "--help" || args[1] == "-h") {
+			return "Usage: drift show <marker|spec>\n\nShow current content of a spec or marker with filepath and line ranges.\nIf the ID has a dot, it is treated as a spec ID; otherwise as a marker ID.\nLinked specs/markers are also displayed.\n\nExamples:\n  drift show cval\n  drift show core.validate", 0
+		}
+		if len(args) < 2 {
+			return "usage: drift show <marker|spec>\n\nExample: drift show cval\n         drift show core.validate", 1
+		}
+		state, err := orch.Todo()
+		if err != nil {
+			return err.Error(), 1
+		}
+		return formatShow(state, dir, args[1])
+
