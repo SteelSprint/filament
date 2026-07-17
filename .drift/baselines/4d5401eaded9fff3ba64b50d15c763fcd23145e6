@@ -1,0 +1,30 @@
+// formatDiffAll shows the full unified diff for every drifted edge (every entry
+// in state.Todos). This is the review-friendly counterpart to the deliberately
+// absent bulk reset: instead of skipping review, it dumps all broken edges'
+// diffs in one pass so the user can review everything before resolving edges
+// one at a time via `drift reset <marker> <module.spec>`. Synced edges are NOT
+// shown (use `drift list` for the full mapping). Returns "No drift detected."
+// with exit code 0 when there are no todos.
+func formatDiffAll(orch *orchestrator.Orchestrator, state core.EvaluatedState) (string, int) {
+	if len(state.Todos) == 0 {
+		return "No drift detected.", 0
+	}
+
+	var sb strings.Builder
+	for i, todo := range state.Todos {
+		if i > 0 {
+			sb.WriteString("\n\n===\n\n")
+		}
+		result, err := orch.Diff(todo.MarkerID, todo.SpecID)
+		if err != nil {
+			return err.Error(), 1
+		}
+		out, code := formatDiffEdge(result)
+		if code != 0 {
+			return out, code
+		}
+		sb.WriteString(out)
+	}
+	return strings.TrimRight(sb.String(), "\n"), 0
+}
+

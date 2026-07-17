@@ -1382,8 +1382,8 @@ func a() { doSomething() }
 	}{
 		{"todo_unknown_long", []string{"todo", "--json"}},
 		{"todo_unknown_short", []string{"todo", "-x"}},
-		{"diff_unknown_all", []string{"diff", "--all"}},
 		{"diff_unknown_long", []string{"diff", "--foo"}},
+		{"diff_unknown_long2", []string{"diff", "--json"}},
 		{"list_unknown_long", []string{"list", "--json"}},
 		{"list_unknown_short", []string{"list", "-v"}},
 		{"show_unknown_long", []string{"show", "--all"}},
@@ -1618,7 +1618,7 @@ func TestCLISkill(t *testing.T) {
 		if len(output) < 500 {
 			t.Fatalf("skill output too short: %d chars, want >500", len(output))
 		}
-		for _, want := range []string{"Quick Start", "Workflow", "Markers", "CLI Commands", "Edge Cases", "range-start", "range-end"} {
+		for _, want := range []string{"Quick Start", "Workflow", "Markers", "CLI Commands", "Edge Cases", "range-start", "range-end", "diff --all", "Why no bulk reset?"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("skill output missing %q", want)
 			}

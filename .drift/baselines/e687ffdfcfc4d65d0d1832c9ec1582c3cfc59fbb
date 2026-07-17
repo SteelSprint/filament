@@ -1,0 +1,119 @@
+func formatDiffEdge(result orchestrator.DiffResult) (string, int) {
+	var sb strings.Builder
+	sb.WriteString(formatDiffSide("Spec", result.Spec))
+	sb.WriteString("\n---\n")
+	sb.WriteString(formatDiffSide("Marker", result.Marker))
+	return strings.TrimRight(sb.String(), "\n"), 0
+}
+
+func formatDiffSide(label string, side orchestrator.DiffSide) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s: %s", label, side.ID))
+	if side.Filepath != "" {
+		sb.WriteString(fmt.Sprintf(" (%s", side.Filepath))
+		if side.Lines != "" {
+			sb.WriteString(":" + side.Lines)
+		}
+		sb.WriteString(")")
+	}
+	sb.WriteString("\n")
+
+	if side.Deleted {
+		sb.WriteString("Status: deleted from disk\n")
+	} else if !side.HasBaseline {
+		sb.WriteString(fmt.Sprintf("Status: no baseline snapshot (hash %s)\n", side.BaselineHash))
+	} else if side.BaselineHash == side.CurrentHash && side.CurrentHash != "" {
+		sb.WriteString("Status: in sync\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("Baseline: %s   Current: %s\n", side.BaselineHash, side.CurrentHash))
+	}
+
+	if !side.HasBaseline {
+		return strings.TrimRight(sb.String(), "\n")
+	}
+	if side.Baseline == side.Current {
+		return strings.TrimRight(sb.String(), "\n")
+	}
+
+	sb.WriteString("\n--- baseline\n+++ current\n")
+	patch := diff.UnifiedDiff(side.Baseline, side.Current)
+	if patch != "" {
+		sb.WriteString(patch)
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func formatDiffExpanded(orch *orchestrator.Orchestrator, state core.EvaluatedState, id string) (string, int) {
+	isSpec := strings.Contains(id, ".")
+
+	var edges []struct{ marker, spec string }
+	if isSpec {
+		for _, link := range state.Links {
+			if link.SpecID == id {
+				edges = append(edges, struct{ marker, spec string }{link.MarkerID, link.SpecID})
+			}
+		}
+	} else {
+		for _, link := range state.Links {
+			if link.MarkerID == id {
+				edges = append(edges, struct{ marker, spec string }{link.MarkerID, link.SpecID})
+			}
+		}
+	}
+
+	if len(edges) == 0 {
+		return fmt.Sprintf("no linked edges found for %q", id), 1
+	}
+
+	var sb strings.Builder
+	for i, edge := range edges {
+		if i > 0 {
+			sb.WriteString("\n\n===\n\n")
+		}
+		result, err := orch.Diff(edge.marker, edge.spec)
+		if err != nil {
+			return err.Error(), 1
+		}
+		out, code := formatDiffEdge(result)
+		if code != 0 {
+			return out, code
+		}
+		sb.WriteString(out)
+	}
+	return strings.TrimRight(sb.String(), "\n"), 0
+}
+
+// 
+// formatDiffAll shows the full unified diff for every drifted edge (every entry
+// in state.Todos). This is the review-friendly counterpart to the deliberately
+// absent bulk reset: instead of skipping review, it dumps all broken edges'
+// diffs in one pass so the user can review everything before resolving edges
+// one at a time via `drift reset <marker> <module.spec>`. Synced edges are NOT
+// shown (use `drift list` for the full mapping). Returns "No drift detected."
+// with exit code 0 when there are no todos.
+func formatDiffAll(orch *orchestrator.Orchestrator, state core.EvaluatedState) (string, int) {
+	if len(state.Todos) == 0 {
+		return "No drift detected.", 0
+	}
+
+	var sb strings.Builder
+	for i, todo := range state.Todos {
+		if i > 0 {
+			sb.WriteString("\n\n===\n\n")
+		}
+		result, err := orch.Diff(todo.MarkerID, todo.SpecID)
+		if err != nil {
+			return err.Error(), 1
+		}
+		out, code := formatDiffEdge(result)
+		if code != 0 {
+			return out, code
+		}
+		sb.WriteString(out)
+	}
+	return strings.TrimRight(sb.String(), "\n"), 0
+}
+
+// 
+

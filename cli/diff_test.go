@@ -256,3 +256,142 @@ func f() {
 		}
 	})
 }
+
+func TestCLIDiffAll(t *testing.T) {
+	t.Run("all_clean_shows_no_drift", func(t *testing.T) {
+		dir := setupDiffProject(t)
+
+		output, code := cli.Run([]string{"diff", "--all"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0, output: %s", code, output)
+		}
+		if !strings.Contains(output, "No drift detected.") {
+			t.Fatalf("expected 'No drift detected.' in output:\n%s", output)
+		}
+	})
+
+	t.Run("all_shows_single_drifted_edge", func(t *testing.T) {
+		dir := setupDiffProject(t)
+
+		writeMainDrift(t, dir, `<main>
+<spec id="s1">CHANGED spec content</spec>
+</main>`)
+
+		output, code := cli.Run([]string{"diff", "--all"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0, output: %s", code, output)
+		}
+		if strings.Contains(output, "No drift detected.") {
+			t.Fatalf("should not say 'No drift detected.' when drift exists:\n%s", output)
+		}
+		if !strings.Contains(output, "CHANGED spec content") {
+			t.Fatalf("expected drifted content in output:\n%s", output)
+		}
+		if !strings.Contains(output, "main.s1") {
+			t.Fatalf("expected spec ID in output:\n%s", output)
+		}
+		if !strings.Contains(output, "m1") {
+			t.Fatalf("expected marker ID in output:\n%s", output)
+		}
+	})
+
+	t.Run("all_shows_multiple_drifted_edges_separated", func(t *testing.T) {
+		dir := t.TempDir()
+
+		writeMainDrift(t, dir, `<main>
+<spec id="s1">spec one original</spec>
+<spec id="s2">spec two original</spec>
+</main>`)
+		testutil.WriteCodeFile(t, dir, "a.go", `package main
+
+`+testutil.MarkerStart("m1")+`
+func a() { original() }
+`+testutil.MarkerEnd("m1")+`
+`)
+		testutil.WriteCodeFile(t, dir, "b.go", `package main
+
+`+testutil.MarkerStart("m2")+`
+func b() { original() }
+`+testutil.MarkerEnd("m2")+`
+`)
+
+		cli.Run([]string{"init"}, dir)
+		cli.Run([]string{"link", "m1", "main.s1"}, dir)
+		cli.Run([]string{"link", "m2", "main.s2"}, dir)
+		cli.Run([]string{"todo"}, dir)
+
+		writeMainDrift(t, dir, `<main>
+<spec id="s1">spec one CHANGED</spec>
+<spec id="s2">spec two CHANGED</spec>
+</main>`)
+
+		output, code := cli.Run([]string{"diff", "--all"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0, output: %s", code, output)
+		}
+		if strings.Contains(output, "No drift detected.") {
+			t.Fatalf("should not say 'No drift detected.' when drift exists:\n%s", output)
+		}
+		if !strings.Contains(output, "spec one CHANGED") {
+			t.Fatalf("expected first drifted spec content:\n%s", output)
+		}
+		if !strings.Contains(output, "spec two CHANGED") {
+			t.Fatalf("expected second drifted spec content:\n%s", output)
+		}
+		sepCount := strings.Count(output, "===")
+		if sepCount < 1 {
+			t.Fatalf("expected at least one === separator between edges:\n%s", output)
+		}
+	})
+
+	t.Run("all_does_not_show_synced_edges", func(t *testing.T) {
+		dir := t.TempDir()
+
+		writeMainDrift(t, dir, `<main>
+<spec id="s1">spec one original</spec>
+<spec id="s2">spec two original</spec>
+</main>`)
+		testutil.WriteCodeFile(t, dir, "a.go", `package main
+
+`+testutil.MarkerStart("m1")+`
+func a() { original() }
+`+testutil.MarkerEnd("m1")+`
+`)
+		testutil.WriteCodeFile(t, dir, "b.go", `package main
+
+`+testutil.MarkerStart("m2")+`
+func b() { original() }
+`+testutil.MarkerEnd("m2")+`
+`)
+
+		cli.Run([]string{"init"}, dir)
+		cli.Run([]string{"link", "m1", "main.s1"}, dir)
+		cli.Run([]string{"link", "m2", "main.s2"}, dir)
+		cli.Run([]string{"todo"}, dir)
+
+		writeMainDrift(t, dir, `<main>
+<spec id="s1">spec one CHANGED</spec>
+<spec id="s2">spec two original</spec>
+</main>`)
+
+		output, code := cli.Run([]string{"diff", "--all"}, dir)
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0, output: %s", code, output)
+		}
+		if !strings.Contains(output, "spec one CHANGED") {
+			t.Fatalf("expected the drifted spec content:\n%s", output)
+		}
+		if strings.Contains(output, "spec two original") {
+			t.Fatalf("synced edge s2 should NOT appear in --all output:\n%s", output)
+		}
+	})
+
+	t.Run("all_not_rejected_as_unknown_flag", func(t *testing.T) {
+		dir := setupDiffProject(t)
+
+		output, code := cli.Run([]string{"diff", "--all"}, dir)
+		if strings.Contains(output, "unknown flag") {
+			t.Fatalf("--all should be recognized for diff, got: %s (code=%d)", output, code)
+		}
+	})
+}

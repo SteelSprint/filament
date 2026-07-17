@@ -81,6 +81,7 @@ The marker pattern is a regex: `D!\s+id=(\S+)(?:\s+(range-start|range-end))?`. I
 | `drift show <marker\|spec>` | Show current content of a spec or marker with filepath and line ranges. Linked specs/markers are also displayed. Read-only. |
 | `drift diff <marker\|spec>` | Show unified diffs of spec and marker content vs baselines for all linked edges. Read-only. |
 | `drift diff <marker> <module.spec>` | Show unified diff for a specific edge (spec side + marker side). Read-only. |
+| `drift diff --all` | Show unified diffs for ALL drifted edges at once — every entry in `drift todo`. Forces review of every broken edge before resolving any of them. Read-only. |
 | `drift link <marker> <module.spec>` | Connect a marker to a spec. Both must exist on disk. Writes baseline snapshots. |
 | `drift unlink <marker> <module.spec>` | Remove a link between a marker and a spec. Also clears resolution state for that edge. |
 | `drift reset <marker> <module.spec>` | Mark a drifted edge as resolved. Prints confirmation. Collapses baselines when all edges for a node are resolved. |
@@ -105,6 +106,7 @@ Drift is per-edge (one marker ↔ one spec). If 1 spec is linked to 3 markers an
 
 - `drift diff <marker> <module.spec>` — shows both the spec and marker diffs for one edge.
 - `drift diff <marker|spec>` — auto-expands to all linked edges.
+- `drift diff --all` — shows the diff for EVERY drifted edge (every entry in `drift todo`) in one pass. Use this to review all broken edges before resolving them.
 
 Each side shows:
 - Entity ID, filepath, and line range (markers only)
@@ -112,6 +114,20 @@ Each side shows:
 - If changed: a unified diff with `--- baseline` / `+++ current` headers
 
 When there's no baseline snapshot (e.g. pre-migration or content-addressed miss), the diff shows "Status: no baseline snapshot (hash X)" — informational, not an error.
+
+# Why no bulk reset?
+
+**Drift intentionally provides NO command to reset multiple edges at once.** There is no `drift reset --all`, no glob, no multi-arg form. Every drifted edge must be individually reviewed and individually resolved with `drift reset <marker> <module.spec>`.
+
+This friction is deliberate and is the whole point of the tool. A bulk reset would let you (or an LLM agent) blindly mark everything as reviewed without actually reading the changes — which would make drift useless as a spec-code sync tool.
+
+The intended workflow when drift exists:
+
+1. `drift todo` — see what broke (which edges drifted).
+2. `drift diff --all` — review every broken edge's changes in one pass.
+3. `drift reset <marker> <module.spec>` — resolve ONE edge at a time, after reviewing it.
+
+If you find yourself wanting a bulk reset, that is a signal that you are not actually reviewing the drift — which is exactly the failure mode drift is designed to prevent.
 
 # .drift/ directory
 

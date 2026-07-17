@@ -80,11 +80,13 @@ func Run(args []string, dir string) (string, int) {
 			}
 			return fmt.Sprintf("Removed deleted marker %q from state.xml", args[1]), 0
 		}
-		_, err := orch.Reset(args[1], args[2])
-		if err != nil {
-			return err.Error(), 1
-		}
-		return fmt.Sprintf("Resolved: %s → %s. Baseline updated.", args[1], args[2]), 0
+	// D! id=cnobulk range-start
+	_, err := orch.Reset(args[1], args[2])
+	if err != nil {
+		return err.Error(), 1
+	}
+	return fmt.Sprintf("Resolved: %s → %s. Baseline updated.", args[1], args[2]), 0
+	// D! id=cnobulk range-end
 
 	// D! id=crfmt range-end
 	// D! id=clfmt range-start
@@ -141,7 +143,14 @@ func Run(args []string, dir string) (string, int) {
 	// D! id=cdiff range-start
 	case "diff":
 		if len(args) < 2 {
-			return "usage:\n  drift diff <marker|spec>\n  drift diff <marker> <module.spec>\n\nExample: drift diff cval\n         drift diff cval core.validate", 1
+			return "usage:\n  drift diff <marker|spec>\n  drift diff <marker> <module.spec>\n  drift diff --all\n\nExample: drift diff cval\n         drift diff cval core.validate", 1
+		}
+		if len(args) >= 2 && args[1] == "--all" {
+			state, err := orch.Todo()
+			if err != nil {
+				return err.Error(), 1
+			}
+			return formatDiffAll(orch, state)
 		}
 		if len(args) >= 3 {
 			result, err := orch.Diff(args[1], args[2])
@@ -186,7 +195,7 @@ var subcommandHelpTexts = map[string]string{
 	"todo": "Usage: drift todo\n\nScan specs and markers, report drift.\nExit codes: 0 = clean, 1 = drift exists, 2 = error.\n\nNo arguments.",
 	"list": "Usage: drift list [--verbose]\n\nShow all specs, markers, links, and sync state.\n--verbose: include spec text and marker content preview.",
 	"show": "Usage: drift show <marker|spec>\n\nShow current content of a spec or marker with filepath and line ranges.\nIf the ID has a dot, it is treated as a spec ID; otherwise as a marker ID.\nLinked specs/markers are also displayed.\n\nExamples:\n  drift show cval\n  drift show core.validate",
-	"diff": "Usage:\n  drift diff <marker|spec>          Show what changed for an entity and all linked counterparts\n  drift diff <marker> <module.spec>  Show what changed for a specific edge\n\nDisplays unified diffs of spec and marker content against their baselines.\nIf the ID has a dot, it is treated as a spec ID; otherwise as a marker ID.\n\nExamples:\n  drift diff cval\n  drift diff core.validate\n  drift diff cval core.validate",
+	"diff": "Usage:\n  drift diff <marker|spec>          Show what changed for an entity and all linked counterparts\n  drift diff <marker> <module.spec>  Show what changed for a specific edge\n  drift diff --all                   Show diffs for ALL drifted edges at once\n\nDisplays unified diffs of spec and marker content against their baselines.\nIf the ID has a dot, it is treated as a spec ID; otherwise as a marker ID.\n\nExamples:\n  drift diff cval\n  drift diff core.validate\n  drift diff cval core.validate\n  drift diff --all",
 	"link": "Usage: drift link <marker> <module.spec>\n\nConnect a marker to a spec. Both must exist on disk.\n\nExample: drift link validate_input core.validate_input",
 	"unlink": "Usage: drift unlink <marker> <module.spec>\n\nRemove a link between a marker and a spec. Also clears any resolution state for that edge.\n\nExample: drift unlink validate_input core.validate_input",
 	"reset": "Usage:\n  drift reset <marker> <module.spec>  Resolve a drifted edge\n  drift reset <id>                Remove an orphaned (deleted, no links) spec/marker\n\nMark a drifted edge as resolved. Collapses baselines when all edges for a node are resolved.\nWhen a spec or marker has been deleted and has no links, use a single ID to remove it from state.xml.\n\nExamples:\n  drift reset validate_input core.validate_input\n  drift reset main.deleted_spec",
@@ -206,7 +215,7 @@ var recognizedFlags = map[string]map[string]bool{
 	"skill":  {},
 	"list":   {"--verbose": true},
 	"show":   {},
-	"diff":   {},
+	"diff":   {"--all": true},
 	"link":   {},
 	"unlink": {},
 	"reset":  {},
@@ -687,5 +696,38 @@ func formatDiffExpanded(orch *orchestrator.Orchestrator, state core.EvaluatedSta
 	}
 	return strings.TrimRight(sb.String(), "\n"), 0
 }
+
+// D! id=cdall range-start
+// formatDiffAll shows the full unified diff for every drifted edge (every entry
+// in state.Todos). This is the review-friendly counterpart to the deliberately
+// absent bulk reset: instead of skipping review, it dumps all broken edges'
+// diffs in one pass so the user can review everything before resolving edges
+// one at a time via `drift reset <marker> <module.spec>`. Synced edges are NOT
+// shown (use `drift list` for the full mapping). Returns "No drift detected."
+// with exit code 0 when there are no todos.
+func formatDiffAll(orch *orchestrator.Orchestrator, state core.EvaluatedState) (string, int) {
+	if len(state.Todos) == 0 {
+		return "No drift detected.", 0
+	}
+
+	var sb strings.Builder
+	for i, todo := range state.Todos {
+		if i > 0 {
+			sb.WriteString("\n\n===\n\n")
+		}
+		result, err := orch.Diff(todo.MarkerID, todo.SpecID)
+		if err != nil {
+			return err.Error(), 1
+		}
+		out, code := formatDiffEdge(result)
+		if code != 0 {
+			return out, code
+		}
+		sb.WriteString(out)
+	}
+	return strings.TrimRight(sb.String(), "\n"), 0
+}
+
+// D! id=cdall range-end
 
 // D! id=cdifffmt range-end
