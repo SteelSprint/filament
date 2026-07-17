@@ -1370,7 +1370,7 @@ func a() { doSomething() }
 		testutil.AssertNoError(t, err)
 		for _, s := range state.Specs {
 			if s.ID == "main.s1" {
-				t.Fatalf("deleted spec main.s1 should have been pruned from drift.pin")
+				t.Fatalf("deleted spec main.s1 should have been pruned from .drift/state.xml")
 			}
 		}
 		for _, l := range state.Links {
@@ -1448,7 +1448,7 @@ func a() { doSomething() }
 		state, _ := store.Load()
 		for _, s := range state.Specs {
 			if s.ID == "main.s2" {
-				t.Fatalf("orphan spec should have been removed from drift.pin")
+				t.Fatalf("orphan spec should have been removed from .drift/state.xml")
 			}
 		}
 	})
@@ -1477,7 +1477,7 @@ func a() { doSomething() }
 `+testutil.MarkerEnd("m1")+`
 `)
 
-		// m2 is now stale (in drift.pin but not on disk, no links)
+		// m2 is now stale (in .drift/state.xml but not on disk, no links)
 		output, code := cli.Run([]string{"reset", "m2"}, dir)
 		if code != 0 {
 			t.Fatalf("exit code = %d, want 0, output: %s", code, output)
@@ -1490,7 +1490,7 @@ func a() { doSomething() }
 		state, _ := store.Load()
 		for _, m := range state.Markers {
 			if m.ID == "m2" {
-				t.Fatalf("orphan marker should have been removed from drift.pin")
+				t.Fatalf("orphan marker should have been removed from .drift/state.xml")
 			}
 		}
 	})
