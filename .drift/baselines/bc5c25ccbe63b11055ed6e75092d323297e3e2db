@@ -1,0 +1,47 @@
+func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
+	var markers []core.Marker
+	seenIDs := make(map[string]bool)
+
+	err := filepath.WalkDir(s.dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, _ := filepath.Rel(s.dir, path)
+		if ignore.matches(relPath, d.IsDir()) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !isTextFile(path) {
+			return nil
+		}
+		// spec files (*.drift.xml) are parsed for specs, not markers — their
+		// spec text may legitimately mention the D! marker syntax as documentation
+		if strings.HasSuffix(relPath, ".drift.xml") {
+			return nil
+		}
+		fileMarkers, err := parseMarkerFile(path, relPath)
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		for _, marker := range fileMarkers {
+			// 
+			if seenIDs[marker.ID] {
+				return fmt.Errorf("duplicate marker shortcode %q", marker.ID)
+			}
+			seenIDs[marker.ID] = true
+			// 
+			markers = append(markers, marker)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return markers, nil
+}
+

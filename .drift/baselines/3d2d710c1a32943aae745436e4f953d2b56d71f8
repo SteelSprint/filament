@@ -1,0 +1,68 @@
+
+// binaryExtensions is a blocklist of file extensions that are virtually always
+// binary. The scanner skips these without reading them (fast path). Anything
+// else is checked by content sampling (null-byte heuristic) before scanning.
+var binaryExtensions = map[string]bool{
+	// images
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true,
+	".tiff": true, ".tif": true, ".ico": true, ".webp": true, ".svgz": true,
+	".heic": true, ".heif": true, ".raw": true, ".psd": true, ".ai": true,
+	// audio
+	".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true,
+	".oga": true, ".wma": true, ".m4a": true, ".aiff": true, ".aif": true,
+	".opus": true, ".au": true,
+	// video
+	".mp4": true, ".mkv": true, ".avi": true, ".mov": true, ".wmv": true,
+	".flv": true, ".webm": true, ".m4v": true, ".mpg": true, ".mpeg": true,
+	".vob": true, ".3gp": true, ".3g2": true,
+	// archives
+	".zip": true, ".tar": true, ".gz": true, ".tgz": true, ".bz2": true,
+	".tbz": true, ".xz": true, ".txz": true, ".7z": true, ".rar": true,
+	".zst": true, ".lz": true, ".lzma": true, ".cab": true, ".iso": true,
+	".dmg": true, ".jar": true, ".war": true, ".ear": true, ".apk": true,
+	".aab": true, ".ipa": true, ".deb": true, ".rpm": true, ".msi": true,
+	// executables / binaries
+	".exe": true, ".dll": true, ".so": true, ".dylib": true, ".bin": true,
+	".o": true, ".a": true, ".lib": true, ".class": true, ".pyc": true,
+	".pyo": true, ".wasm": true, ".node": true, ".ko": true,
+	// databases
+	".db": true, ".sqlite": true, ".sqlite3": true, ".mdb": true, ".accdb": true,
+	".dbf": true,
+	// documents (binary)
+	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+	".ppt": true, ".pptx": true, ".odt": true, ".ods": true, ".odp": true,
+	".epub": true, ".mobi": true, ".azw": true, ".azw3": true,
+	// fonts
+	".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".eot": true,
+	// models / 3d / media
+	".blend": true, ".fbx": true, ".obj": true, ".stl": true, ".gltf": true,
+	".glb": true, ".dae": true, ".3ds": true, ".dwg": true, ".dxf": true,
+	// other binary
+	".dat": true, ".pak": true, ".vcd": true, ".img": true, ".rom": true,
+	".sav": true, ".cache": true, ".lockb": true,
+}
+
+// isTextFile reports whether path should be scanned for markers. It uses a
+// two-stage check: (1) extension blocklist — fast path, skips known binary
+// formats without reading the file; (2) content sampling — reads the first
+// 8KB and rejects files containing null bytes (the classic heuristic for
+// binary detection, used by grep/git). This makes drift language-agnostic:
+// any text file of any extension is a valid marker host.
+func isTextFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	if binaryExtensions[ext] {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 8192)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return false
+	}
+	return !bytes.Contains(buf[:n], []byte{0})
+}
+

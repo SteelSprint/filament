@@ -1,9 +1,11 @@
 package scanner
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,18 +16,85 @@ import (
 )
 
 // D! id=scode range-start
-var codeExtensions = map[string]bool{
-	".go": true, ".py": true, ".js": true, ".ts": true,
-	".jsx": true, ".tsx": true, ".java": true, ".c": true,
-	".cpp": true, ".h": true, ".hpp": true, ".rs": true,
-	".rb": true, ".php": true, ".swift": true, ".kt": true,
-	".cs": true, ".scala": true, ".sh": true, ".bash": true,
-	".lua": true, ".dart": true, ".vue": true, ".svelte": true,
+
+// binaryExtensions is a blocklist of file extensions that are virtually always
+// binary. The scanner skips these without reading them (fast path). Anything
+// else is checked by content sampling (null-byte heuristic) before scanning.
+var binaryExtensions = map[string]bool{
+	// images
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true,
+	".tiff": true, ".tif": true, ".ico": true, ".webp": true, ".svgz": true,
+	".heic": true, ".heif": true, ".raw": true, ".psd": true, ".ai": true,
+	// audio
+	".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true,
+	".oga": true, ".wma": true, ".m4a": true, ".aiff": true, ".aif": true,
+	".opus": true, ".au": true,
+	// video
+	".mp4": true, ".mkv": true, ".avi": true, ".mov": true, ".wmv": true,
+	".flv": true, ".webm": true, ".m4v": true, ".mpg": true, ".mpeg": true,
+	".vob": true, ".3gp": true, ".3g2": true,
+	// archives
+	".zip": true, ".tar": true, ".gz": true, ".tgz": true, ".bz2": true,
+	".tbz": true, ".xz": true, ".txz": true, ".7z": true, ".rar": true,
+	".zst": true, ".lz": true, ".lzma": true, ".cab": true, ".iso": true,
+	".dmg": true, ".jar": true, ".war": true, ".ear": true, ".apk": true,
+	".aab": true, ".ipa": true, ".deb": true, ".rpm": true, ".msi": true,
+	// executables / binaries
+	".exe": true, ".dll": true, ".so": true, ".dylib": true, ".bin": true,
+	".o": true, ".a": true, ".lib": true, ".class": true, ".pyc": true,
+	".pyo": true, ".wasm": true, ".node": true, ".ko": true,
+	// databases
+	".db": true, ".sqlite": true, ".sqlite3": true, ".mdb": true, ".accdb": true,
+	".dbf": true,
+	// documents (binary)
+	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+	".ppt": true, ".pptx": true, ".odt": true, ".ods": true, ".odp": true,
+	".epub": true, ".mobi": true, ".azw": true, ".azw3": true,
+	// fonts
+	".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".eot": true,
+	// models / 3d / media
+	".blend": true, ".fbx": true, ".obj": true, ".stl": true, ".gltf": true,
+	".glb": true, ".dae": true, ".3ds": true, ".dwg": true, ".dxf": true,
+	// other binary
+	".dat": true, ".pak": true, ".vcd": true, ".img": true, ".rom": true,
+	".sav": true, ".cache": true, ".lockb": true,
+}
+
+// isTextFile reports whether path should be scanned for markers. It uses a
+// two-stage check: (1) extension blocklist — fast path, skips known binary
+// formats without reading the file; (2) content sampling — reads the first
+// 8KB and rejects files containing null bytes (the classic heuristic for
+// binary detection, used by grep/git). This makes drift language-agnostic:
+// any text file of any extension is a valid marker host.
+func isTextFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	if binaryExtensions[ext] {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 8192)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return false
+	}
+	return !bytes.Contains(buf[:n], []byte{0})
 }
 
 // D! id=scode range-end
 
-var markerPattern = regexp.MustCompile(`D!\s+id=(\S+)(?:\s+(range-start|range-end))?`)
+// D! id=mregex range-start
+// markerPattern matches D! id=<shortcode> followed by a REQUIRED range-start
+// or range-end suffix. The shortcode must be a valid identifier: alphanumeric
+// plus underscores (no dots, no punctuation). This prevents documentation
+// that demonstrates the marker syntax (e.g. `D! id=...` or `D! id=<shortcode>`)
+// from being mistaken for a real marker. The suffix is also mandatory so a
+// bare `D! id=foo` without a range is not matched.
+var markerPattern = regexp.MustCompile(`D!\s+id=([A-Za-z][A-Za-z0-9_]*)\s+(range-start|range-end)`)
+// D! id=mregex range-end
 
 type ScanResult struct {
 	Specs   []core.Spec
@@ -257,8 +326,12 @@ func (s *FileScanner) scanMarkers(ignore *driftIgnore) ([]core.Marker, error) {
 		if d.IsDir() {
 			return nil
 		}
-		ext := filepath.Ext(path)
-		if !codeExtensions[ext] {
+		if !isTextFile(path) {
+			return nil
+		}
+		// spec files (*.drift.xml) are parsed for specs, not markers — their
+		// spec text may legitimately mention the D! marker syntax as documentation
+		if strings.HasSuffix(relPath, ".drift.xml") {
 			return nil
 		}
 		fileMarkers, err := parseMarkerFile(path, relPath)
@@ -312,16 +385,6 @@ func parseMarkerFile(path, storePath string) ([]core.Marker, error) {
 		shortcode := match[1]
 		suffix := match[2]
 		lineNumber := i + 1
-
-		// D! id=midfmt range-start
-		if strings.Contains(shortcode, ".") {
-			return nil, fmt.Errorf("%s:%d: marker id %q must not contain a dot (dots are reserved for spec ID qualification)", path, lineNumber, shortcode)
-		}
-		// D! id=midfmt range-end
-
-		if suffix != "range-start" && suffix != "range-end" {
-			return nil, fmt.Errorf("%s:%d: marker %q must declare range-start or range-end", path, lineNumber, shortcode)
-		}
 
 		decls = append(decls, rawMarkerDecl{
 			id:     shortcode,

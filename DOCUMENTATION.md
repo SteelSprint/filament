@@ -43,16 +43,17 @@ The scanner walks the import graph starting from `main.drift.xml`. Imports are r
 
 ### Markers
 
-Markers are `D! id=<shortcode>` comment lines in code files (`.go`, `.py`, `.js`, `.ts`, `.java`, `.c`, `.rs`, etc.):
+Markers are `D! id=<shortcode> range-start` and `D! id=<shortcode> range-end` comment lines in any text file — drift is language-agnostic and scans all text files (binary files are skipped by extension blocklist and null-byte detection):
 
 ```go
-// D! id=4hy7fh3h
+// D! id=<your_id> range-start
 func handleRequest() {
     validateInput()
 }
+// D! id=<your_id> range-end
 ```
 
-The scanner finds these lines, records the shortcode, filepath, and line number, and SHA1-hashes the 10 lines following the marker line. The marker pattern is a regex: `D!\s+id=(\S+)`. It can appear in any comment style (`//`, `#`, `--`, etc.).
+The scanner finds these lines, records the shortcode, filepath, and line number, and SHA1-hashes the lines between range-start and range-end (exclusive of both marker lines, with nested marker declarations blanked). The marker pattern is a regex: `D!\s+id=([A-Za-z][A-Za-z0-9_]*)\s+(range-start|range-end)`. It can appear in any comment style (`//`, `#`, `--`, etc.).
 
 ### Links
 

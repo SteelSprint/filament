@@ -67,7 +67,7 @@ func handleRequest() {
 - Nested and overlapping ranges are allowed.
 - Before hashing, other marker declaration lines within a range are blanked (the `D!` declaration is stripped, leaving only the comment prefix like `// `). This makes markers invisible to each other's hashes.
 
-Supported file extensions: `.go`, `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.java`, `.c`, `.cpp`, `.h`, `.hpp`, `.rs`, `.rb`, `.php`, `.swift`, `.kt`, `.cs`, `.scala`, `.sh`, `.bash`, `.lua`, `.dart`, `.vue`, `.svelte`.
+Drift is language-agnostic. Markers work in any comment style (`//`, `#`, `--`, `/* */`) in any text file. The scanner detects text files by extension blocklist (skips known binary formats like `.png`, `.zip`, `.exe`) plus a null-byte content sample, so any file that is text — of any extension — is scanned. Binary files are skipped. If you can write a comment in it, drift can track it.
 
 The marker pattern is a regex: `D!\s+id=(\S+)(?:\s+(range-start|range-end))?`. It can appear in any comment style (`//`, `#`, `--`, `/* */`, etc.).
 

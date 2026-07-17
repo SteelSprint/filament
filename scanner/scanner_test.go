@@ -847,19 +847,20 @@ func c() {}
 }
 
 func TestScannerIgnoresNonPinXmlNonCodeFiles(t *testing.T) {
-	t.Run("ignores_txt_md_json_files", func(t *testing.T) {
+	t.Run("json_files_are_scanned_as_text", func(t *testing.T) {
 		dir := t.TempDir()
 		writeMainDrift(t, dir, `<main></main>`)
-		testutil.WriteCodeFile(t, dir, "notes.txt", testutil.MarkerStart("should_not_find")+"\n")
-		testutil.WriteCodeFile(t, dir, "readme.md", testutil.MarkerStart("should_not_find_either")+"\n")
-		testutil.WriteCodeFile(t, dir, "data.json", testutil.MarkerStart("nope")+"\n")
+		testutil.WriteCodeFile(t, dir, "data.json", "# D! id=should_find range-start\n{}\n# D! id=should_find range-end\n")
 
-		scanner := scanner.NewFileScanner(dir)
-		result, err := scanner.Scan()
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
 		testutil.AssertNoError(t, err)
 
-		if len(result.Markers) != 0 {
-			t.Fatalf("expected 0 markers from non-code files, got %d", len(result.Markers))
+		// JSON is text, so it IS scanned now (language-agnostic). This test
+		// was renamed conceptually: we now verify binary files are skipped,
+		// not text files with "non-code" extensions.
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from .json file (text), got %d", len(result.Markers))
 		}
 		if len(result.Specs) != 0 {
 			t.Fatalf("expected 0 specs, got %d", len(result.Specs))
@@ -877,15 +878,23 @@ func TestScannerIDFormatValidation(t *testing.T) {
 		assertScanError(t, sc, "must not contain a dot")
 	})
 
-	t.Run("marker_id_with_dot_errors", func(t *testing.T) {
+	t.Run("marker_id_with_dot_not_recognized", func(t *testing.T) {
 		dir := t.TempDir()
 		writeMainDrift(t, dir, `<main>
   <spec id="s1">spec</spec>
 </main>`)
+		// a dot in the ID means the strict regex won't match — the marker is
+		// silently ignored (not an error). This avoids false positives on docs
+		// that mention the marker syntax. The user discovers the missing marker
+		// via `drift list` or `drift link`.
 		badMarker := "// D! id=bad" + ".marker range-start\nfunc a() {}\n// D! id=bad" + ".marker range-end\n"
 		testutil.WriteCodeFile(t, dir, "main.go", badMarker)
 		sc := scanner.NewFileScanner(dir)
-		assertScanError(t, sc, "must not contain a dot")
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+		if len(result.Markers) != 0 {
+			t.Fatalf("expected 0 markers (dot in ID not recognized), got %d", len(result.Markers))
+		}
 	})
 
 	t.Run("spec_id_without_dot_ok", func(t *testing.T) {
@@ -924,13 +933,20 @@ func a() {}
 }
 
 func TestScannerRangeMarkers(t *testing.T) {
-	t.Run("old_style_marker_without_suffix_errors", func(t *testing.T) {
+	t.Run("old_style_marker_without_suffix_not_recognized", func(t *testing.T) {
 		dir := t.TempDir()
 		writeMainDrift(t, dir, `<main></main>`)
+		// a bare `D! id=foo` without range-start/range-end is not recognized
+		// by the strict regex — silently ignored, not an error. This avoids
+		// false positives on docs that mention the marker syntax.
 		testutil.WriteCodeFile(t, dir, "main.go", "// D! id=foo\nfunc a() {}\n")
 
-		scanner := scanner.NewFileScanner(dir)
-		assertScanError(t, scanner, "range-start")
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+		if len(result.Markers) != 0 {
+			t.Fatalf("expected 0 markers (no range suffix), got %d", len(result.Markers))
+		}
 	})
 
 	t.Run("range_start_without_range_end_errors", func(t *testing.T) {
@@ -1248,6 +1264,141 @@ func TestScannerNonGoExtensions(t *testing.T) {
 		}
 		if _, ok := testutil.FindScanResultMarker(result.Markers, "js1"); !ok {
 			t.Fatalf("expected marker js1, not found")
+		}
+	})
+}
+
+func TestScannerTextFileDetection(t *testing.T) {
+	t.Run("txt_file_markers_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "notes.txt", "# D! id=note1 range-start\nsome text\n# D! id=note1 range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from .txt file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "note1"); !ok {
+			t.Fatalf("expected marker note1, not found")
+		}
+	})
+
+	t.Run("md_file_markers_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "README.md", "<!-- D! id=doc1 range-start -->\n# Title\n<!-- D! id=doc1 range-end -->\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from .md file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "doc1"); !ok {
+			t.Fatalf("expected marker doc1, not found")
+		}
+	})
+
+	t.Run("yaml_file_markers_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "config.yaml", "# D! id=cfg1 range-start\nkey: value\n# D! id=cfg1 range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from .yaml file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "cfg1"); !ok {
+			t.Fatalf("expected marker cfg1, not found")
+		}
+	})
+
+	t.Run("no_extension_file_markers_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "Makefile", "# D! id=mk1 range-start\ntarget:\n\techo hi\n# D! id=mk1 range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from extensionless file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "mk1"); !ok {
+			t.Fatalf("expected marker mk1, not found")
+		}
+	})
+
+	t.Run("unknown_extension_zig_markers_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "main.zig", "// D! id=zig1 range-start\npub fn main() void {}\n// D! id=zig1 range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from .zig file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "zig1"); !ok {
+			t.Fatalf("expected marker zig1, not found")
+		}
+	})
+
+	t.Run("binary_file_skipped_by_extension", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		// a .png with a marker-shaped comment inside (won't be read at all)
+		testutil.WriteCodeFile(t, dir, "image.png", "\x89PNG\r\n\x1a\n// D! id=should_not_find range-start\nbinary garbage\n// D! id=should_not_find range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 0 {
+			t.Fatalf("expected 0 markers from binary .png, got %d", len(result.Markers))
+		}
+	})
+
+	t.Run("binary_file_skipped_by_null_byte_detection", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		// a file with an unknown extension that contains null bytes (binary)
+		content := "// D! id=should_not_find range-start\n" + string([]byte{0x00, 0x01, 0x02}) + "\n// D! id=should_not_find range-end\n"
+		testutil.WriteCodeFile(t, dir, "data.weirdbin", content)
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 0 {
+			t.Fatalf("expected 0 markers from binary file, got %d", len(result.Markers))
+		}
+	})
+
+	t.Run("text_file_with_unicode_discovered", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMainDrift(t, dir, `<main></main>`)
+		testutil.WriteCodeFile(t, dir, "poem.txt", "# D! id=p1 range-start\nhéllo wörld 日本語\n# D! id=p1 range-end\n")
+
+		sc := scanner.NewFileScanner(dir)
+		result, err := sc.Scan()
+		testutil.AssertNoError(t, err)
+
+		if len(result.Markers) != 1 {
+			t.Fatalf("expected 1 marker from unicode text file, got %d", len(result.Markers))
+		}
+		if _, ok := testutil.FindScanResultMarker(result.Markers, "p1"); !ok {
+			t.Fatalf("expected marker p1, not found")
 		}
 	})
 }

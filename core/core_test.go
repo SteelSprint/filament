@@ -772,6 +772,138 @@ func TestCoreDeletionDrift(t *testing.T) {
 			t.Fatalf("expected links pruned, got %d", len(evaluatedState.Links))
 		}
 	})
+
+	t.Run("deleted_marker_with_drifted_spec_prunes_resolution", func(t *testing.T) {
+		scan := newScanFromBaselines(specs, markers,
+			map[string]string{"spec1": "cs"},
+			map[string]string{"marker1": ""})
+		evaluatedState := evaluateResetActionExpectingSuccess(t, core.CoreAlgorithmContext{
+			Specs:   specs,
+			Markers: markers,
+			Links:   links,
+			Action:  core.ResetAction{SpecID: "spec1", MarkerID: "marker1", Scan: scan},
+		})
+		if len(evaluatedState.Markers) != 0 {
+			t.Fatalf("expected markers pruned, got %d", len(evaluatedState.Markers))
+		}
+		if len(evaluatedState.Links) != 0 {
+			t.Fatalf("expected links pruned, got %d", len(evaluatedState.Links))
+		}
+		if len(evaluatedState.ResolutionState) != 0 {
+			t.Fatalf("expected resolution state pruned for deleted marker, got %d", len(evaluatedState.ResolutionState))
+		}
+	})
+
+	t.Run("deleted_spec_with_drifted_marker_prunes_resolution", func(t *testing.T) {
+		scan := newScanFromBaselines(specs, markers,
+			map[string]string{"spec1": ""},
+			map[string]string{"marker1": "cm"})
+		evaluatedState := evaluateResetActionExpectingSuccess(t, core.CoreAlgorithmContext{
+			Specs:   specs,
+			Markers: markers,
+			Links:   links,
+			Action:  core.ResetAction{SpecID: "spec1", MarkerID: "marker1", Scan: scan},
+		})
+		if len(evaluatedState.Specs) != 0 {
+			t.Fatalf("expected specs pruned, got %d", len(evaluatedState.Specs))
+		}
+		if len(evaluatedState.Links) != 0 {
+			t.Fatalf("expected links pruned, got %d", len(evaluatedState.Links))
+		}
+		if len(evaluatedState.ResolutionState) != 0 {
+			t.Fatalf("expected resolution state pruned for deleted spec, got %d", len(evaluatedState.ResolutionState))
+		}
+	})
+
+	t.Run("deleted_marker_then_todo_no_validation_error", func(t *testing.T) {
+		scan := newScanFromBaselines(specs, markers,
+			map[string]string{"spec1": "cs"},
+			map[string]string{"marker1": ""})
+		resetState := evaluateResetActionExpectingSuccess(t, core.CoreAlgorithmContext{
+			Specs:   specs,
+			Markers: markers,
+			Links:   links,
+			Action:  core.ResetAction{SpecID: "spec1", MarkerID: "marker1", Scan: scan},
+		})
+
+		todoScan := core.Scan{
+			SpecHashes:   map[string]string{"spec1": "cs"},
+			MarkerHashes: map[string]string{},
+		}
+		_, err := core.NewCoreAlgorithm().EvaluateState(core.CoreAlgorithmContext{
+			Specs:           resetState.Specs,
+			Markers:         resetState.Markers,
+			Links:           resetState.Links,
+			ResolutionState: resetState.ResolutionState,
+			Action:          core.TodoAction{Scan: todoScan},
+		})
+		if err != nil {
+			t.Fatalf("unexpected validation error on subsequent todo: %v", err)
+		}
+	})
+
+	t.Run("deleted_spec_then_todo_no_validation_error", func(t *testing.T) {
+		scan := newScanFromBaselines(specs, markers,
+			map[string]string{"spec1": ""},
+			map[string]string{"marker1": "cm"})
+		resetState := evaluateResetActionExpectingSuccess(t, core.CoreAlgorithmContext{
+			Specs:   specs,
+			Markers: markers,
+			Links:   links,
+			Action:  core.ResetAction{SpecID: "spec1", MarkerID: "marker1", Scan: scan},
+		})
+
+		todoScan := core.Scan{
+			SpecHashes:   map[string]string{},
+			MarkerHashes: map[string]string{"marker1": "cm"},
+		}
+		_, err := core.NewCoreAlgorithm().EvaluateState(core.CoreAlgorithmContext{
+			Specs:           resetState.Specs,
+			Markers:         resetState.Markers,
+			Links:           resetState.Links,
+			ResolutionState: resetState.ResolutionState,
+			Action:          core.TodoAction{Scan: todoScan},
+		})
+		if err != nil {
+			t.Fatalf("unexpected validation error on subsequent todo: %v", err)
+		}
+	})
+
+	t.Run("deleted_marker_multi_edge_prunes_all_resolutions", func(t *testing.T) {
+		multiSpecs := []core.Spec{testutil.NewSpec("s1", "b1"), testutil.NewSpec("s2", "b2")}
+		multiMarkers := []core.Marker{testutil.NewMarker("m1", "bm1")}
+		multiLinks := []core.Link{testutil.NewLink("s1", "m1"), testutil.NewLink("s2", "m1")}
+		scan := newScanFromBaselines(multiSpecs, multiMarkers,
+			map[string]string{"s1": "cs1", "s2": "cs2"},
+			map[string]string{"m1": ""})
+
+		ctx := core.CoreAlgorithmContext{
+			Specs: multiSpecs, Markers: multiMarkers, Links: multiLinks,
+			Action: core.ResetAction{SpecID: "s1", MarkerID: "m1", Scan: scan},
+		}
+		state := evaluateResetActionExpectingSuccess(t, ctx)
+
+		if len(state.ResolutionState) != 1 {
+			t.Fatalf("expected 1 resolution after first reset (s2 still unchecked), got %d", len(state.ResolutionState))
+		}
+
+		ctx = core.CoreAlgorithmContext{
+			Specs: state.Specs, Markers: state.Markers, Links: state.Links,
+			ResolutionState: state.ResolutionState,
+			Action:          core.ResetAction{SpecID: "s2", MarkerID: "m1", Scan: scan},
+		}
+		state = evaluateResetActionExpectingSuccess(t, ctx)
+
+		if len(state.Markers) != 0 {
+			t.Fatalf("expected marker pruned, got %d", len(state.Markers))
+		}
+		if len(state.Links) != 0 {
+			t.Fatalf("expected links pruned, got %d", len(state.Links))
+		}
+		if len(state.ResolutionState) != 0 {
+			t.Fatalf("expected all resolutions pruned for deleted marker, got %d", len(state.ResolutionState))
+		}
+	})
 }
 
 func TestValidate(t *testing.T) {

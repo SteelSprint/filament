@@ -310,7 +310,6 @@ func collapseResolvedNodes(
 					collapsedMarkers[markerID] = true
 				}
 				anyNodeCollapsed = true
-				pruneResolutionEntriesForCollapsedMarker(resolutionStateByEdge, markerID, links, specsByID, scan)
 			}
 		}
 		for specID, spec := range specsByID {
@@ -326,12 +325,17 @@ func collapseResolvedNodes(
 					collapsedSpecs[specID] = true
 				}
 				anyNodeCollapsed = true
-				pruneResolutionEntriesForCollapsedSpec(resolutionStateByEdge, specID, links, markersByID, scan)
 			}
 		}
 		if !anyNodeCollapsed {
 			break
 		}
+	}
+	for markerID := range collapsedMarkers {
+		pruneResolutionEntriesForCollapsedMarker(resolutionStateByEdge, markerID, links, specsByID, scan)
+	}
+	for specID := range collapsedSpecs {
+		pruneResolutionEntriesForCollapsedSpec(resolutionStateByEdge, specID, links, markersByID, scan)
 	}
 }
 
@@ -422,12 +426,17 @@ func pruneResolutionEntriesForCollapsedMarker(
 	specsByID map[string]*Spec,
 	scan Scan,
 ) {
+	deleted := scan.MarkerHashes[collapsedMarkerID] == ""
 	for _, link := range links {
 		if link.MarkerID != collapsedMarkerID {
 			continue
 		}
 		edgeKey := resolutionEdgeKey(link.MarkerID, link.SpecID)
 		if _, ok := resolutionStateByEdge[edgeKey]; !ok {
+			continue
+		}
+		if deleted {
+			delete(resolutionStateByEdge, edgeKey)
 			continue
 		}
 		if spec := specsByID[link.SpecID]; spec != nil && spec.Hash == scan.SpecHashes[link.SpecID] {
@@ -446,12 +455,17 @@ func pruneResolutionEntriesForCollapsedSpec(
 	markersByID map[string]*Marker,
 	scan Scan,
 ) {
+	deleted := scan.SpecHashes[collapsedSpecID] == ""
 	for _, link := range links {
 		if link.SpecID != collapsedSpecID {
 			continue
 		}
 		edgeKey := resolutionEdgeKey(link.MarkerID, link.SpecID)
 		if _, ok := resolutionStateByEdge[edgeKey]; !ok {
+			continue
+		}
+		if deleted {
+			delete(resolutionStateByEdge, edgeKey)
 			continue
 		}
 		if marker := markersByID[link.MarkerID]; marker != nil && marker.Hash == scan.MarkerHashes[link.MarkerID] {
