@@ -1430,11 +1430,11 @@ func a() { doSomething() }
 		name string
 		cmd  []string
 	}{
-		{"todo_unknown_long", []string{"todo", "--json"}},
+		{"todo_unknown_long", []string{"todo", "--foo"}},
 		{"todo_unknown_short", []string{"todo", "-x"}},
 		{"diff_unknown_long", []string{"diff", "--foo"}},
-		{"diff_unknown_long2", []string{"diff", "--json"}},
-		{"list_unknown_long", []string{"list", "--json"}},
+		{"diff_unknown_long2", []string{"diff", "--bar"}},
+		{"list_unknown_long", []string{"list", "--foo"}},
 		{"list_unknown_short", []string{"list", "-v"}},
 		{"show_unknown_long", []string{"show", "--all"}},
 		{"link_unknown_long", []string{"link", "--foo", "m1", "main.s1"}},

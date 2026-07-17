@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"drift/cli/commands"
 	"drift/cli/output"
@@ -30,6 +31,19 @@ func Run(args []string, dir string) (string, int) {
 	return RunWithRender(args, dir, output.PlainPresenter{})
 }
 
+// RunAuto selects the Presenter based on global flags in args (--json),
+// then delegates to RunWithRender. Used by main.go.
+func RunAuto(args []string, dir string) (string, int) {
+	presenter := output.Presenter(output.PlainPresenter{})
+	for _, a := range args {
+		if a == "--json" {
+			presenter = output.JSONPresenter{}
+			break
+		}
+	}
+	return RunWithRender(args, dir, presenter)
+}
+
 // RunWithRender dispatches a command via the Registry, builds a typed Result,
 // and renders it via the supplied Presenter. The flow is:
 //  1. Top-level help check (no args / help / --help / -h)
@@ -42,6 +56,8 @@ func Run(args []string, dir string) (string, int) {
 //
 // D! id=cdisp range-start
 func RunWithRender(args []string, dir string, presenter output.Presenter) (string, int) {
+	args = stripGlobalFlags(args)
+
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		return presenter.Text(output.TextResult{Text: helpContent}), 0
 	}
@@ -78,3 +94,21 @@ func RunWithRender(args []string, dir string, presenter output.Presenter) (strin
 }
 
 // D! id=cdisp range-end
+
+// stripGlobalFlags removes recognized global flags (--json, --no-color,
+// --color=...) from args. These flags are handled before dispatch and must
+// not appear in any command's recognized flag list or trigger
+// unknown_flag_rejection. Landing 3 handles --json; Landing 4 adds the rest.
+func stripGlobalFlags(args []string) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if a == "--json" || a == "--no-color" {
+			continue
+		}
+		if strings.HasPrefix(a, "--color=") {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}

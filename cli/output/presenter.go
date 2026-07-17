@@ -15,6 +15,7 @@ type Presenter interface {
 	Ok(OkResult) string
 	Error(ErrorResult) string
 	Text(TextResult) string
+	Version(VersionResult) string
 }
 
 // Render dispatches a Result to the matching Presenter method. This is the
@@ -40,6 +41,8 @@ func Render(p Presenter, r Result) string {
 		return p.Error(v)
 	case TextResult:
 		return p.Text(v)
+	case VersionResult:
+		return p.Version(v)
 	default:
 		return ""
 	}

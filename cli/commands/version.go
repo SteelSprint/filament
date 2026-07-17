@@ -8,7 +8,7 @@ import "drift/cli/output"
 type VersionCommand struct{}
 
 func (c VersionCommand) Run(ctx Context) (output.Result, int) {
-	return output.TextResult{Text: "drift version " + Version}, 0
+	return output.VersionResult{Version: Version}, 0
 }
 
 func (c VersionCommand) Meta() Meta {

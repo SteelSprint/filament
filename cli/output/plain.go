@@ -382,3 +382,7 @@ func (p PlainPresenter) Error(r ErrorResult) string {
 func (p PlainPresenter) Text(r TextResult) string {
 	return r.Text
 }
+
+func (p PlainPresenter) Version(r VersionResult) string {
+	return "drift version " + r.Version
+}

@@ -96,6 +96,12 @@ type TextResult struct {
 	Text string
 }
 
+// VersionResult carries the version string for `drift version`. PlainPresenter
+// returns "drift version <X>"; JSONPresenter emits {"version":"<X>"}.
+type VersionResult struct {
+	Version string
+}
+
 func (TodoResult) isResult()         {}
 func (ListResult) isResult()         {}
 func (ShowResult) isResult()         {}
@@ -105,3 +111,4 @@ func (DiffAllResult) isResult()      {}
 func (OkResult) isResult()           {}
 func (ErrorResult) isResult()        {}
 func (TextResult) isResult()         {}
+func (VersionResult) isResult()      {}

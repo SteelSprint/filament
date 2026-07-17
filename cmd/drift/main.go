@@ -18,7 +18,7 @@ func main() {
 		args[0] = "version"
 	}
 
-	output, code := cli.Run(args, ".")
+	output, code := cli.RunAuto(args, ".")
 	if output != "" {
 		fmt.Println(output)
 	}
