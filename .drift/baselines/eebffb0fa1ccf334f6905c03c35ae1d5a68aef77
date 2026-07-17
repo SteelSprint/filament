@@ -1,0 +1,1 @@
+When .drift/state.xml does not exist on disk, Load returns ErrStateNotFound, prompting the user to run drift init first.

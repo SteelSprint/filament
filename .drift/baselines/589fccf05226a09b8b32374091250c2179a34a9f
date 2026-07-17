@@ -1,0 +1,1 @@
+Unlink loads State, finds the link matching the given marker and spec, removes it from Links, also removes any ResolutionState entries for that edge, and saves the State. If no matching link exists, returns an error.

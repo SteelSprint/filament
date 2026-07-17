@@ -1,0 +1,4 @@
+func (o *Orchestrator) Init() error {
+	return o.stateStore.Save(statestore.State{})
+}
+

@@ -1,0 +1,1 @@
+Link loads State, scans the filesystem, reconciles, validates that the marker and spec exist, rejects duplicate links, saves the State with the new link appended, and writes baseline files for the spec and marker using their current scanned content (content-addressed by hash, dedup-safe).

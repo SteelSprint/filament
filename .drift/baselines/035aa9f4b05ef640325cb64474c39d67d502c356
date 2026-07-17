@@ -1,0 +1,1 @@
+FileStateStore.Load reads .drift/state.xml from disk, unmarshals XML into Specs, Markers, Links, and ResolutionState, and returns the State. If the file does not exist, it returns ErrStateNotFound.

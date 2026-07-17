@@ -1,0 +1,1 @@
+The init command creates .drift/ (containing state.xml and baselines/), and if main.drift.xml does not already exist, writes a starter template with a single example spec. The output message instructs the user to edit main.drift.xml, place markers, and run drift skill.

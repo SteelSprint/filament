@@ -1,0 +1,2 @@
+var ErrStateNotFound = errors.New(".drift/state.xml not found, run 'drift init' first")
+
