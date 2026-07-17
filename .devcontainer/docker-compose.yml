@@ -6,18 +6,18 @@ volumes:
 
 services:
   app:
-    container_name: filament
+    container_name: drift
     build:
       context: .
       dockerfile: Dockerfile
     labels:
-      - filament.role=devcontainer
+      - drift.role=devcontainer
     env_file:
       # Ensure that the variables in .env match the same variables in devcontainer.json
       - .env
 
     volumes:
-      - ..:/workspaces/filament:cached
+      - ..:/workspaces/drift:cached
       # Persists opencode auth.json (API keys), opencode.db, logs across rebuilds.
       - opencode-data:/home/vscode/.local/share/opencode
 

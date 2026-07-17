@@ -6,7 +6,7 @@ Use this skill when implementing features, fixing bugs, or making any code chang
 
 The spec is the source of truth. The code implements the spec. Nothing exists outside the spec.
 
-If you need to understand filament itself — commands, marker format, state file, drift model — run `filament skill`. This skill describes how we work, not how filament works.
+If you need to understand drift itself — commands, marker format, state file, drift model — run `drift skill`. This skill describes how we work, not how drift works.
 
 ## Two loops
 
@@ -22,7 +22,7 @@ Do not implement by layer (e.g., all parser changes, then all validator changes,
 1. Pick a small set of related clauses (e.g., one new parser rule, its validation, its test case)
 2. For each clause in the set, run the inner loop (spec → test → code)
 3. Place `D!` markers in the code tracing back to the spec clauses you implemented
-4. Verify the skeleton works end-to-end: `filament check` passes, `go test ./...` passes
+4. Verify the skeleton works end-to-end: `drift check` passes, `go test ./...` passes
 5. Commit
 
 The skeleton proves the architecture works before you build on it. Each iteration builds on a verified foundation, not on assumptions.
@@ -31,7 +31,7 @@ The skeleton proves the architecture works before you build on it. Each iteratio
 
 #### Step 1: Spec
 
-Before writing any code, ensure the behavior is described in the spec XML (`filament.spec.xml`). If it's not in the spec, don't build it. If the spec is ambiguous, ask the user.
+Before writing any code, ensure the behavior is described in the spec XML (`main.drift.xml`). If it's not in the spec, don't build it. If the spec is ambiguous, ask the user.
 
 After editing the spec, sync and check. The check output is your work item list — each finding (MISSING, SPEC_DRIFT, SITE_DRIFT) is a thing to fix. Work through them one by one.
 
@@ -65,7 +65,7 @@ When writing code that produces output (error messages, findings, status reports
 
 The LLM reading the output should never need external context to understand what went wrong, why it matters, or what to do next.
 
-After implementing, place a `D!` marker above the code that implements each clause. Use `filament add <clause_id>` to generate the marker line. Then resolve drift and verify: `filament check` passes, `go test ./...` passes.
+After implementing, place a `D!` marker above the code that implements each clause. Use `drift add <clause_id>` to generate the marker line. Then resolve drift and verify: `drift check` passes, `go test ./...` passes.
 
 ## Rules
 
@@ -87,7 +87,7 @@ When in doubt, ask.
 
 After each walking skeleton is complete and verified:
 
-1. `filament check` passes
+1. `drift check` passes
 2. `go test ./...` passes
 3. `go vet ./...` passes
 
