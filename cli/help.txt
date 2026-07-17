@@ -8,7 +8,7 @@ Usage:
 Commands:
   init                          Initialize: create .drift/ + starter main.drift.xml
   todo                          Scan specs and markers, report drift
-  list                          Show all specs, markers, links, and sync state
+  list [--verbose]              Show all specs, markers, links, and sync state
   show <marker|spec>            Show current content of a spec or marker
   diff <marker|spec>            Show what changed (unified diff vs baseline)
   diff <marker> <module.spec>   Show what changed for a specific edge
@@ -16,14 +16,24 @@ Commands:
   link <marker> <module.spec>   Connect a marker to a spec
   unlink <marker> <module.spec>  Remove a link between a marker and a spec
   reset <marker> <module.spec>  Mark a drifted edge as resolved
+  reset <id>                    Remove an orphaned (deleted) spec/marker from state.xml
+  config theme <name>           Set theme preference (default, gruvbox, nord, dracula, etc.)
+  config theme                  Show current theme preference
   help                          Show this help
   skill                         Print comprehensive guide (for LLM agents)
   version                       Show version
 
-Flags:
-  --help, -h                    Show command-specific help (works for every command above)
-  --verbose                     Show spec text and marker content preview (list only)
-  Unknown long flags (--foo) and unknown short flags (-x) are rejected with an error.
+Global flags (accepted by every command):
+  --json                        Output structured JSON instead of text
+  --no-color                    Disable color output
+  --color=auto|always|never     Control color mode (default: auto)
+  --help, -h                    Show command-specific help
+
+Themes:
+  12 built-in: default, minimal, monochrome, high-contrast, dark, light,
+    protanopia, solarized-dark, solarized-light, gruvbox, nord, dracula
+  drift config theme <name>     Set your theme (stored in .drift/user-settings.xml)
+  .drift/theme.xml              Project-level custom theme (all 18 elements, committed)
 
 Marker syntax:
   // D! id=<markerid> range-start    Place above the code that implements a spec
@@ -43,5 +53,7 @@ Examples:
   drift link validate_input core.validate_input
   drift list
   drift todo
+  drift todo --json               # JSON output for LLM consumption
+  drift config theme gruvbox       # set theme preference
   drift unlink validate_input core.validate_input
   drift reset validate_input core.validate_input

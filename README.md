@@ -14,6 +14,22 @@ Single static binary. No runtime, no libraries, no config files — just one exe
 
 Drift works with any programming language — and any text file. Specs are plain XML; markers are comment lines (`// D! id=... range-start` / `// D! id=... range-end`) that work in any comment style — `//`, `#`, `--`, `/* */`. The scanner detects text files by extension blocklist (skips known binary formats) plus a null-byte content sample, so any text file of any extension is scanned. If you can write a comment in it, drift can track it.
 
+## Three output modes
+
+Every command supports three output modes via global flags:
+
+- **Color** (default in a terminal) — themed ANSI output with syntax highlighting on code content. 12 built-in themes including Solarized, Gruvbox, Nord, and Dracula. Set your theme with `drift config theme gruvbox`.
+- **Plain** (default when piped) — clean text with no escape codes. Safe for pipelines, redirects, and CI logs. Automatically selected when stdout is not a TTY.
+- **JSON** (`--json`) — structured JSON for programmatic consumption. LLM agents should use `--json` to parse output reliably.
+
+```bash
+drift todo --json               # structured JSON for LLM consumption
+drift todo --color=always       # force color even when piped
+drift config theme nord         # set theme preference
+```
+
+JSON mode never emits ANSI codes — it's always plain structured data.
+
 ## Install
 
 **macOS / Linux:**
@@ -142,7 +158,7 @@ Bugs are fixed test-first. Write the test that reproduces the bug, confirm it fa
 
 - **Specs** — `*.drift.xml` files containing `<spec id="...">` elements under `<main>` or `<module name="...">` roots
 - **Markers** — `// D! id=<shortcode> range-start` and `// D! id=<shortcode> range-end` comment lines in code files, wrapping the code that implements a spec
-- **`.drift/`** — state directory at project root containing `state.xml` (baseline hashes, links, resolution state) and `baselines/` (content-addressed baseline snapshots). Tool-managed — do not edit by hand. Commit to git.
-- **CLI** — `drift init`, `drift todo`, `drift list`, `drift show`, `drift diff`, `drift link`, `drift unlink`, `drift reset`, `drift help`, `drift skill`
+- **`.drift/`** — state directory at project root containing `state.xml` (baseline hashes, links, resolution state), `baselines/` (content-addressed baseline snapshots), optional `theme.xml` (project-level custom theme), and `user-settings.xml` (per-user theme preference, gitignored). Tool-managed — do not edit by hand. Commit to git (except user-settings.xml).
+- **CLI** — `drift init`, `drift todo`, `drift list`, `drift show`, `drift diff`, `drift link`, `drift unlink`, `drift reset`, `drift config theme`, `drift help`, `drift skill`, `drift version`. Global flags: `--json`, `--no-color`, `--color={auto,always,never}`.
 
 See [DOCUMENTATION.md](DOCUMENTATION.md) for the full documentation.

@@ -18,7 +18,7 @@ drift skill           # Print this guide (pipe to a file or read into context)
 
 4. **Link markers to specs**: `drift link <marker> <module.spec>` — connects a marker to a spec. Spec IDs are module-qualified (e.g. `core.validate`).
 
-5. **Check for drift**: `drift todo` — scans specs and markers, compares hashes against baselines, and reports any drift as a todo list. Each item includes a hint: `→ Run 'drift diff <marker> <spec>' to see what changed.`
+5. **Check for drift**: `drift todo` — scans specs and markers, compares hashes against baselines, and reports any drift as a todo list. Each item includes a hint: `→ Run 'drift diff <marker> <spec>' to see what changed.` LLM agents can use `drift todo --json` for structured output.
 
 6. **See what changed**: `drift diff <marker> <module.spec>` — shows a unified diff of both the spec and marker content against their baselines. This is the verify step before resolving.
 
@@ -86,8 +86,115 @@ The marker pattern is a regex: `D!\s+id=(\S+)(?:\s+(range-start|range-end))?`. I
 | `drift unlink <marker> <module.spec>` | Remove a link between a marker and a spec. Also clears resolution state for that edge. |
 | `drift reset <marker> <module.spec>` | Mark a drifted edge as resolved. Prints confirmation. Collapses baselines when all edges for a node are resolved. |
 | `drift reset <id>` | Remove an orphaned (deleted, no links) spec/marker from state.xml. |
+| `drift config theme <name>` | Set theme preference (e.g. gruvbox, nord, dracula). Stored in .drift/user-settings.xml (not committed to git). |
+| `drift config theme` | Show current theme preference. |
 | `drift help` | Show command reference with examples. |
 | `drift skill` | Print this guide (for LLM agents learning the tool). |
+| `drift version` | Show version string. |
+
+# Output Modes
+
+Drift supports three output modes, selectable via global flags accepted by every command:
+
+- **Plain** (default when piped/redirected): byte-for-byte stable text output. No ANSI codes. Safe for pipelines and file redirection.
+- **Color** (default in a terminal): themed ANSI-colored output with syntax highlighting on code content. Automatically disabled when stdout is not a TTY or when `NO_COLOR` is set.
+- **JSON** (`--json`): structured JSON objects for programmatic consumption. Every command produces a defined JSON shape. No ANSI codes ever.
+
+## Global flags
+
+| Flag | Effect |
+|---|---|
+| `--json` | Force JSON output mode. Overrides all color settings. |
+| `--no-color` | Force Plain output. Disables all ANSI codes. |
+| `--color=auto` | Default. Color when stdout is a TTY and NO_COLOR is unset. |
+| `--color=always` | Force Color output even when not a TTY. |
+| `--color=never` | Same as `--no-color`. |
+
+Precedence (highest wins): `--json` > `--no-color` > `--color=never` > NO_COLOR env > non-TTY > Color.
+
+## JSON output for LLM agents
+
+If you are an LLM agent consuming drift output programmatically, use `--json`:
+
+```
+drift todo --json
+```
+
+Example output (abbreviated):
+```json
+{"ok":true,"specs":12,"markers":8,"links":10,"todos":[],"unlinkedMarkers":0}
+```
+
+When drift exists (todos non-empty):
+```json
+{"ok":false,"specs":12,"markers":8,"links":10,"todos":[{"marker":"cval","spec":"core.validate","markerLocation":"core/core.go:114","specLocation":"core/core.drift.xml:0","markerChanged":true,"specChanged":false,"markerDeleted":false,"specDeleted":false}],"unlinkedMarkers":0}
+```
+
+Every command supports `--json`. The JSON shape is deterministic (struct-defined field order, not alphabetized). JSON output never contains ANSI escape codes.
+
+# Theming
+
+Color mode uses a theme — a mapping from 18 named visual elements to ANSI styles. Themes are selectable and customizable.
+
+## Built-in themes
+
+12 themes ship with drift:
+
+| Theme | Style |
+|---|---|
+| `default` | Vibrant bright ANSI. Blue marker IDs, magenta spec IDs, dim metadata. |
+| `minimal` | Status colors only (green/yellow/red). Everything else plain. |
+| `monochrome` | Bold/dim only, zero color. |
+| `high-contrast` | Maximum brightness, no dimming. |
+| `dark` | Tuned for dark terminal backgrounds. |
+| `light` | Tuned for light terminal backgrounds (basic colors, no dim). |
+| `protanopia` | Red-green color blind friendly (blue/yellow/cyan only). |
+| `solarized-dark` | Solarized Dark palette (Ethan Schoonover, MIT). |
+| `solarized-light` | Solarized Light palette. |
+| `gruvbox` | Gruvbox Dark palette (Pavel Pertsev, MIT). |
+| `nord` | Nord palette (Sven Greb, MIT). |
+| `dracula` | Dracula palette (Zeno Rocha, MIT). |
+
+## Setting your theme
+
+```
+drift config theme gruvbox     # set preference
+drift config theme             # show current
+drift config theme default     # reset to default
+```
+
+Theme preference is stored in `.drift/user-settings.xml` — this file is NOT committed to git (excluded by `.drift/.gitignore`, created automatically by `drift init`). Each developer on a project can have a different theme.
+
+## Custom project theme
+
+A project can define a custom theme in `.drift/theme.xml`. This is a FULL override — all 18 elements must be specified:
+
+```xml
+<theme>
+  <element id="marker_id" color="94" bold="true"/>
+  <element id="spec_id" color="95" bold="true"/>
+  <element id="filepath" dim="true"/>
+  <element id="line_number" dim="true"/>
+  <element id="hash" dim="true"/>
+  <element id="status_ok" color="92"/>
+  <element id="status_warn" color="93"/>
+  <element id="status_error" color="91"/>
+  <element id="section_header" bold="true"/>
+  <element id="command" color="92"/>
+  <element id="hint" color="96"/>
+  <element id="diff_add" color="92"/>
+  <element id="diff_remove" color="91"/>
+  <element id="diff_hunk" color="96" bold="true"/>
+  <element id="code_comment" dim="true"/>
+  <element id="code_string" color="92"/>
+  <element id="code_keyword" color="96"/>
+  <element id="code_number" color="93"/>
+</theme>
+```
+
+Precedence: `.drift/theme.xml` (project-level, committed) > `.drift/user-settings.xml` (user-level, not committed) > `default` theme.
+
+Color values accept basic ANSI (`"31"`), bright (`"91"`), and 256-color (`"38;5;37"`) SGR parameters.
 
 # How Drift Detection Works
 
@@ -135,6 +242,9 @@ If you find yourself wanting a bulk reset, that is a signal that you are not act
 
 - `state.xml` — XML state file storing baseline hashes, links, and resolution state. Tool-managed — do not edit by hand. Commit to git.
 - `baselines/` — content-addressed baseline files. Each file is named by its SHA1 hash (`sha1(content) == filename`). Written on `link` and `reset`. Dedup'd automatically. Orphaned files (from collapsed baselines) are harmless. Commit to git.
+- `theme.xml` — Optional project-level custom theme definition (all 18 elements). Commit to git if present. See <ref spec="output.custom_theme">Theming</ref>.
+- `user-settings.xml` — Per-user theme preference (written by `drift config theme`). NOT committed — excluded by `.drift/.gitignore`.
+- `.gitignore` — Created by `drift init`. Contains `user-settings.xml` to prevent accidental commits of personal preferences.
 
 # drift.ignore
 
