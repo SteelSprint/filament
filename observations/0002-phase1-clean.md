@@ -1,3 +1,5 @@
+> **Note:** This file predates the Driftpin → Drift rename (breaking change). Historical references to "Driftpin" / "driftpin" / ".driftpin" / "*.pin.xml" / "filament" are retained as-is.
+
 # Observation 0002 — phase1-clean
 
 Date: 2026-07-16
