@@ -1,0 +1,3 @@
+func FormatUser(name string) string {
+	return "User: " + name
+}

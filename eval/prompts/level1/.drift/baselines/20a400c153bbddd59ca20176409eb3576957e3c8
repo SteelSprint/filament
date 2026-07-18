@@ -1,0 +1,1 @@
+ValidateUser rejects users with empty names by returning an error. No other validation is performed — names of any non-empty length are accepted.

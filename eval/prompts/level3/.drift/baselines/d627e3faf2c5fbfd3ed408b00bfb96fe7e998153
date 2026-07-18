@@ -1,0 +1,1 @@
+FormatUser returns a display string in the format "User: " followed by the name. No other formatting is applied.

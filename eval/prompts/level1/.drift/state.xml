@@ -1,0 +1,12 @@
+<drift>
+  <specs>
+    <spec id="main.validate" hash="20a400c153bbddd59ca20176409eb3576957e3c8" filepath="main.drift.xml" line="0"></spec>
+  </specs>
+  <markers>
+    <marker id="validate" hash="b42decfa6c9df4f99ee7cf8bdaf84e595688050c" filepath="main.go" line="5" endline="12"></marker>
+  </markers>
+  <links>
+    <link specId="main.validate" markerId="validate"></link>
+  </links>
+  <resolutions></resolutions>
+</drift>

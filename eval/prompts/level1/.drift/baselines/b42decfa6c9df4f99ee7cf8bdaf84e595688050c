@@ -1,0 +1,6 @@
+func ValidateUser(name string) error {
+	if name == "" {
+		return fmt.Errorf("name must not be empty")
+	}
+	return nil
+}

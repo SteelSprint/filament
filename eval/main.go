@@ -21,6 +21,7 @@ func main() {
 		judgeModel   = flag.String("judge", "openrouter/z-ai/glm-5.2", "judge LLM model ID")
 		battery      = flag.Bool("battery", false, "run all prompts in eval/prompts/ instead of a single prompt")
 		runs         = flag.Int("runs", 2, "number of battery prompts to run (capped by available prompts)")
+		repeat       = flag.Int("repeat", 1, "repeat each prompt N times for statistical baseline")
 		label        = flag.String("label", "", "label for this run (defaults to timestamp)")
 		dryRun       = flag.Bool("dry-run", false, "stage only, skip LLM calls")
 	)
@@ -71,21 +72,25 @@ func main() {
 		err error
 	}
 
-	results := make([]runResult, len(prompts))
+	totalRuns := len(prompts) * *repeat
+	results := make([]runResult, totalRuns)
 	var wg sync.WaitGroup
 
 	for i, prompt := range prompts {
-		wg.Add(1)
-		go func(idx int, p promptItem) {
-			defer wg.Done()
-			rl := runLabel
-			if len(prompts) > 1 {
-				rl = fmt.Sprintf("%s-%d", runLabel, idx)
-			}
-			pipe := NewPipeline(repoRoot, rl, p.name, *subjectModel, *judgeModel)
-			err := pipe.Run(p.content, *dryRun)
-			results[idx] = runResult{dir: pipe.RunDir(), err: err}
-		}(i, prompt)
+		for j := 0; j < *repeat; j++ {
+			idx := i**repeat + j
+			wg.Add(1)
+			go func(idx int, p promptItem) {
+				defer wg.Done()
+				rl := runLabel
+				if totalRuns > 1 {
+					rl = fmt.Sprintf("%s-r%d", runLabel, idx)
+				}
+				pipe := NewPipeline(repoRoot, rl, p.name, *subjectModel, *judgeModel)
+				err := pipe.Run(p.content, *dryRun)
+				results[idx] = runResult{dir: pipe.RunDir(), err: err}
+			}(idx, prompt)
+		}
 	}
 	wg.Wait()
 

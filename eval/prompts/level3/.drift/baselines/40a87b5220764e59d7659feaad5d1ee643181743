@@ -1,0 +1,1 @@
+CheckPermission returns true only for the role "admin". No other roles are granted permission under any circumstances.

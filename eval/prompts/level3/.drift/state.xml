@@ -1,0 +1,18 @@
+<drift>
+  <specs>
+    <spec id="main.validate" hash="20a400c153bbddd59ca20176409eb3576957e3c8" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.format" hash="d627e3faf2c5fbfd3ed408b00bfb96fe7e998153" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.perms" hash="40a87b5220764e59d7659feaad5d1ee643181743" filepath="main.drift.xml" line="0"></spec>
+  </specs>
+  <markers>
+    <marker id="validate" hash="b42decfa6c9df4f99ee7cf8bdaf84e595688050c" filepath="main.go" line="5" endline="12"></marker>
+    <marker id="format" hash="271b40edaf11133720328f517f13be9d22aae742" filepath="main.go" line="14" endline="18"></marker>
+    <marker id="perms" hash="ba7289c76d93874e6a4a160afc3fe482a33a8d4a" filepath="main.go" line="20" endline="27"></marker>
+  </markers>
+  <links>
+    <link specId="main.validate" markerId="validate"></link>
+    <link specId="main.format" markerId="format"></link>
+    <link specId="main.perms" markerId="perms"></link>
+  </links>
+  <resolutions></resolutions>
+</drift>
