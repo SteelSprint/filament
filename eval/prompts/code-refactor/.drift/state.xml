@@ -1,12 +1,11 @@
-<drift>
+<drift version="4">
   <specs>
-    <spec id="main.convert" hash="89382b49e5d6235453e58f991d4f119e269ceba1" filepath="/workspaces/filament/eval/prompts/code-refactor/main.drift.xml" line="0"></spec>
+    <spec id="main.convert" hash="89382b49e5d6235453e58f991d4f119e269ceba1" filepath="main.drift.xml" line="0"></spec>
   </specs>
   <markers>
     <marker id="convert_func" hash="b64143ed9c4830e3c281f3900fdfcc2e47486836" filepath="main.go" line="5" endline="29"></marker>
   </markers>
-  <links>
-    <link specId="main.convert" markerId="convert_func"></link>
-  </links>
-  <resolutions></resolutions>
+  <edges>
+    <edge from="convert_func" to="main.convert"></edge>
+  </edges>
 </drift>

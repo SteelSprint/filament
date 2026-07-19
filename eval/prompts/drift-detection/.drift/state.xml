@@ -1,24 +1,23 @@
-<drift>
+<drift version="4">
   <specs>
-    <spec id="main.add" hash="593755cb8bb35d23987ee218f9dcf8e37f16c844" filepath="/workspaces/filament/eval/prompts/drift-detection/main.drift.xml" line="0"></spec>
-    <spec id="main.sub" hash="f8dddee5ae15c3a6d95cef25d805fcdb0e248630" filepath="/workspaces/filament/eval/prompts/drift-detection/main.drift.xml" line="0"></spec>
-    <spec id="main.mul" hash="6f08f8f4d41e1702b4dbe9555ccd46fe1c4a315e" filepath="/workspaces/filament/eval/prompts/drift-detection/main.drift.xml" line="0"></spec>
-    <spec id="main.div" hash="c8a4827d1f7d87e10cfc7a56f19117fd1869b63a" filepath="/workspaces/filament/eval/prompts/drift-detection/main.drift.xml" line="0"></spec>
-    <spec id="main.cli" hash="4f97fafe4ef03b4b94b24991f620d005d8e4c475" filepath="/workspaces/filament/eval/prompts/drift-detection/main.drift.xml" line="0"></spec>
+    <spec id="main.add" hash="593755cb8bb35d23987ee218f9dcf8e37f16c844" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.sub" hash="f8dddee5ae15c3a6d95cef25d805fcdb0e248630" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.mul" hash="6f08f8f4d41e1702b4dbe9555ccd46fe1c4a315e" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.div" hash="c8a4827d1f7d87e10cfc7a56f19117fd1869b63a" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.cli" hash="4f97fafe4ef03b4b94b24991f620d005d8e4c475" filepath="main.drift.xml" line="0"></spec>
   </specs>
   <markers>
+    <marker id="mul_func" hash="4b8097d1a8ea9a5859514ccc65cb562beb1b1940" filepath="main.go" line="17" endline="19"></marker>
+    <marker id="div_func" hash="451288709979e629e5ed03ecb6d92fdf386a2050" filepath="main.go" line="21" endline="28"></marker>
     <marker id="main_func" hash="49c35f5b9ef17a680baca536f8e8073e68a36305" filepath="main.go" line="30" endline="66"></marker>
     <marker id="add_func" hash="5544c934e853e3b0f3c66896e746bfab1a632655" filepath="main.go" line="9" endline="11"></marker>
     <marker id="sub_func" hash="1817585c3dcfb1a1aba19ea6b1f7f45d93958cf2" filepath="main.go" line="13" endline="15"></marker>
-    <marker id="mul_func" hash="4b8097d1a8ea9a5859514ccc65cb562beb1b1940" filepath="main.go" line="17" endline="19"></marker>
-    <marker id="div_func" hash="451288709979e629e5ed03ecb6d92fdf386a2050" filepath="main.go" line="21" endline="28"></marker>
   </markers>
-  <links>
-    <link specId="main.add" markerId="add_func"></link>
-    <link specId="main.sub" markerId="sub_func"></link>
-    <link specId="main.mul" markerId="mul_func"></link>
-    <link specId="main.div" markerId="div_func"></link>
-    <link specId="main.cli" markerId="main_func"></link>
-  </links>
-  <resolutions></resolutions>
+  <edges>
+    <edge from="add_func" to="main.add"></edge>
+    <edge from="div_func" to="main.div"></edge>
+    <edge from="main_func" to="main.cli"></edge>
+    <edge from="mul_func" to="main.mul"></edge>
+    <edge from="sub_func" to="main.sub"></edge>
+  </edges>
 </drift>

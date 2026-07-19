@@ -1,18 +1,17 @@
-<drift>
+<drift version="4">
   <specs>
-    <spec id="main.reverse" hash="56d0fe42fd00172f3aee684add3b7d02e6892850" filepath="/workspaces/filament/eval/prompts/bad-link/main.drift.xml" line="0"></spec>
-    <spec id="main.palindrome" hash="ff80d65b087483aa4461d34cec025b1c19ac477f" filepath="/workspaces/filament/eval/prompts/bad-link/main.drift.xml" line="0"></spec>
-    <spec id="main.wordcount" hash="db003b7372b660cee9d0d2a338dd352e073805ca" filepath="/workspaces/filament/eval/prompts/bad-link/main.drift.xml" line="0"></spec>
+    <spec id="main.reverse" hash="56d0fe42fd00172f3aee684add3b7d02e6892850" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.palindrome" hash="ff80d65b087483aa4461d34cec025b1c19ac477f" filepath="main.drift.xml" line="0"></spec>
+    <spec id="main.wordcount" hash="db003b7372b660cee9d0d2a338dd352e073805ca" filepath="main.drift.xml" line="0"></spec>
   </specs>
   <markers>
     <marker id="reverse_func" hash="e8e482126f6b491b02df764be199d403f650b804" filepath="main.go" line="8" endline="16"></marker>
     <marker id="palindrome_func" hash="e8eedb19c2315e23ae21ce819fd91e648371309e" filepath="main.go" line="18" endline="23"></marker>
     <marker id="wordcount_func" hash="daa939912d213f4f17a5ae5f7853556b79209348" filepath="main.go" line="25" endline="29"></marker>
   </markers>
-  <links>
-    <link specId="main.reverse" markerId="reverse_func"></link>
-    <link specId="main.reverse" markerId="palindrome_func"></link>
-    <link specId="main.wordcount" markerId="wordcount_func"></link>
-  </links>
-  <resolutions></resolutions>
+  <edges>
+    <edge from="reverse_func" to="main.reverse"></edge>
+    <edge from="palindrome_func" to="main.reverse"></edge>
+    <edge from="wordcount_func" to="main.wordcount"></edge>
+  </edges>
 </drift>
