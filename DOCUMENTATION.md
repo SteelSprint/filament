@@ -116,7 +116,7 @@ The previous `<edgeResolutions>` section is gone. Reset = sync baseline to scan 
 ## The `.drift/` directory
 
 - `state.xml` — baseline (v4). Tool-managed. Commit to git.
-- `baselines/` — content-addressed snapshots of every spec and marker hash. Commit to git.
+- `baselines.bin` — gob-encoded packfile of content-addressed snapshots of every spec and marker hash. Commit to git.
 - `theme.xml` — optional project-level custom theme. Commit to git.
 - `user-settings.xml` — per-user theme preference. Do NOT commit (gitignored).
 - `state.lock` — runtime lock file. Do NOT commit (gitignored).

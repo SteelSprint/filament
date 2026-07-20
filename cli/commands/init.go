@@ -39,7 +39,7 @@ func (c InitCommand) Meta() Meta {
 	return Meta{
 		Name:  "init",
 		Short: "Initialize: create .drift/ + starter main.drift.xml",
-		Usage: "Usage: drift init\n\nInitialize the .drift/ directory (state.xml + baselines/) and write a starter\nmain.drift.xml template if one does not already exist.\n\nIdempotent: if .drift/state.xml already exists, prints \"Already initialized\"\nwith exit code 0 and does not modify any files. To forcibly reinitialize,\ndelete .drift/ by hand (drift provides no command for this, by design).\n\nNo arguments.",
+		Usage: "Usage: drift init\n\nInitialize the .drift/ directory (state.xml) and write a starter\nmain.drift.xml template if one does not already exist. baselines.bin is\ncreated lazily on the first baseline write (e.g. drift link).\n\nIdempotent: if .drift/state.xml already exists, prints \"Already initialized\"\nwith exit code 0 and does not modify any files. To forcibly reinitialize,\ndelete .drift/ by hand (drift provides no command for this, by design).\n\nNo arguments.",
 		Flags: nil,
 	}
 }

@@ -169,10 +169,10 @@ Every command supports three modes:
 ## The `.drift/` directory
 
 - `state.xml` — baseline (v4). Specs, markers, edges. No resolutions table. Commit to git.
-- `baselines/` — content-addressed snapshots. Commit to git.
+- `baselines.bin` — gob-encoded packfile of content-addressed baseline snapshots. Commit to git.
 - `theme.xml` — project-level custom theme. Commit to git.
 - `user-settings.xml` — per-user theme preference. Do NOT commit (gitignored).
-- `state.lock` — runtime lock. Do NOT commit (gitignored).
+- `state.lock` — runtime lock acquired by `fileio.Begin` for the duration of each CLI invocation. Do NOT commit (gitignored).
 
 ## Why no bulk reset?
 

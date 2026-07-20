@@ -29,8 +29,8 @@ Drift is a spec-drift detection tool for LLM coding agents. Specs describe behav
 - **Closures are derived per-seed.** Each drift event has a seed node (the citer-side party of the change). Closure membership = seed + transitive citers (plus, for marker seeds, the linked specs so reviewers can verify the marker still implements them). Closure identity is the first 8 hex chars of SHA1(sorted node IDs + sorted undirected edge keys) — stable across drift-state changes, changes only when membership changes.
 - **Closures are strictly disjoint.** Two seeds produce two closures, even if they share non-seed citers. A non-seed citer that cites multiple drifted specs appears in each spec's closure independently.
 - **Reset is per-closure, per-seed events.** `drift reset <hash>` syncs the closure's seed events to baseline (NODE_CHANGED → set hash, EDGE_ADDED → add edge, EDGE_REMOVED → remove edge, NODE_REMOVED → remove node). Broken-edge events are no-ops on reset and persist until the user fixes the scan. Citers' state is never modified by reset — only the seed's events sync.
-- **Commit `.drift/state.xml` and `.drift/baselines/` to git.** They are shared baselines, not local artifacts. Do NOT commit `.drift/user-settings.xml` or `.drift/state.lock` (both gitignored).
-- **State file locking is built in.** Concurrent `drift link`/`unlink`/`reset` calls are safe — flock (Unix) or LockFileEx (Windows) serializes Load→Save. Safe to batch these in parallel tool calls.
+- **Commit `.drift/state.xml` and `.drift/baselines.bin` to git.** They are shared baselines, not local artifacts. Do NOT commit `.drift/user-settings.xml` or `.drift/state.lock` (both gitignored).
+- **State file locking is built in.** Concurrent `drift link`/`unlink`/`reset` calls are safe — `internal/fileio` acquires an exclusive advisory lock (flock on Unix, LockFileEx on Windows) on `.drift/state.lock` for the entire CLI invocation via `fileio.Begin`; all state/baseline I/O routes through the resulting `Session`. Safe to batch these in parallel tool calls.
 
 ## Build / test / lint
 
@@ -42,7 +42,7 @@ GOOS=windows go build -o /dev/null ./statestore/   # verify Windows compiles
 ```
 
 - Module path is `drift`, Go 1.26.
-- One external dependency: `golang.org/x/sys` (for cross-platform file locking in `statestore/`). Do not add dependencies without strong justification.
+- One external dependency: `golang.org/x/sys` (for cross-platform file locking in `internal/fileio/`). Do not add dependencies without strong justification.
 - The race test (`cli/race_test.go`) runs on every `go test ./...` — it is a regression guard for concurrent state mutations, not optional.
 - `make build` runs `./drift todo` as a spec-drift gate. The build fails if any drift is detected. On each successful rebuild the prior binary is backed up to `bak/drift-<UTC-timestamp>` (gitignored). Roll back with `cp bak/drift-<ts> drift`.
 - State.xml v4 is the provenance-closure format (baseline only, no per-edge resolutions). Pre-v4 files are refused with a clear error directing the user to re-init.
@@ -56,8 +56,8 @@ cli/             # CLI dispatch, command structs, output layer (Plain/Color/JSON
   output/        # presenters, themes, tokenizer, user settings
 core/            # core algorithm (Closure, DriftEvent, DeriveClosures, EvaluateState)
 scanner/         # file scanner — specs and refs from *.drift.xml, markers from code
-statestore/      # FileStateStore (state.xml v4), BaselineStore, file locking
-orchestrator/    # wires scanner + statestore + core; mutating methods hold lock
+statestore/      # FileStateStore (state.xml v4), BaselineStore (baselines.bin packfile)
+orchestrator/    # wires scanner + statestore + core; mutating methods receive a fileio.Session from the caller
 eval/            # eval harness (subjects an LLM to a drift fixture, judges result)
 internal/        # diff, testutil
 business/        # product spec hierarchy (goals → modules → intent → impl)
