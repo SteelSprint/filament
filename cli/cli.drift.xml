@@ -21,4 +21,29 @@
 <spec id="skill_decision_tree">The skill guide includes a "Decision tree" section that gives explicit guidance for resolving each drift event kind in a closure. The tree is a table with at least these columns: Event kind | Question to ask | If yes | If no. It covers every drift event kind (NODE_CHANGED on marker, NODE_CHANGED on spec, NODE_ADDED, NODE_REMOVED, EDGE_ADDED, EDGE_REMOVED, EDGE_BROKEN). Drift itself is a deterministic signal — it reports that a hash changed but does not judge whether the change is semantically consistent with the spec. The decision tree is the rubric the reviewer (human or LLM) applies to decide whether to update code, update the spec, or fix a citation before resetting the closure.</spec>
 <spec id="skill_marker_placement">The skill guide includes a "Marker placement" section that gives guidance for marker placement during refactors and routine edits. Conventions: keep the marker on the public entry-point function that the spec describes; helpers stay outside the marked range unless they warrant their own spec + marker; nested markers are supported but produce noisier diffs and are not preferred. Drift is content-addressed — a marker reports changes to the bytes inside its range. Refactors that move code across a marker boundary without changing behavior still produce NODE_CHANGED events (intentional); the reviewer's job is to confirm the move didn't change semantics. There is no "this was just a refactor" annotation; the reviewer must judge.</spec>
 <spec id="config_command">The config command provides a namespace for user-specific preferences. Currently supports one subcommand: `drift config theme NAME` which writes the theme preference to .drift/user-settings.xml (not committed to git; .drift/.gitignore is created by drift init to exclude it). `drift config theme` with no NAME argument prints the current effective theme. Unknown theme names are rejected with an error listing the 12 available themes. Missing the subcommand (e.g. bare `drift config`) returns a usage error. See <ref spec="output.config_theme">config theme</ref> and <ref spec="output_impl.user_settings">user settings</ref>.</spec>
+<spec id="todo_alignment_vs_correctness">
+Overview: A clean `drift todo` (exit 0) certifies ONLY that every linked marker's content hash matches its linked spec's hash AND that no closures are derived. It does NOT certify that the code is correct, that it runs, that it satisfies implicit requirements, or that the task is complete.
+
+Requirements:
+  R1. The contract of `drift todo` exit 0 is exactly: "all non-deleted markers are linked AND every linked marker's hash equals its linked spec's hash." Nothing more.
+  R2. Drift MUST NOT claim runtime correctness, semantic correctness, or task completeness. Drift is a content-alignment signal, not a test suite.
+  R3. When drift reports clean, the reviewer (human or LLM) MUST independently verify runtime behavior via smoke tests, integration tests, or manual execution. Drift's green state is necessary but not sufficient for task completion.
+  R4. The `drift skill` guide MUST state this contract explicitly so reviewers do not over-trust a green todo as task completion. The observation in eval run 0004 (subject shipped panic-prone code while `drift todo` was green) motivates this requirement.
+
+See also: cli.format_todo, principles.specs_are_truth.
+</spec>
+<spec id="prescriptive_error_contract">
+Overview: Every error path in drift's command pipeline MUST produce a prescriptive error message that names the problem AND points the user at the fix in one step. Drift MUST NOT return bare error strings ("not found", "invalid") that invite a blind retry.
+
+Defined terms:
+  prescriptive error — an error message that (a) names what went wrong specifically, (b) names the input that caused it where applicable, and (c) suggests the next action that would resolve it
+
+Requirements:
+  R1. Every ErrorResult returned by a command MUST include a Message satisfying the prescriptive-error definition. Bare error strings without context or remediation hint are forbidden.
+  R2. When a CLI command receives an unknown ID (marker, spec, or closure hash), the error MUST list available candidates so the user can copy-paste the correct ID without re-running another command.
+  R3. When a CLI command receives a malformed flag combination, the error MUST name the specific conflict and reference the relevant precedence rule.
+  R4. See cli.prescriptive_link_errors for the canonical pattern; this spec generalizes that pattern to every error path. Existing compliance: prescriptive_link_errors covers link errors; other commands SHOULD be audited for compliance.
+
+See also: cli.prescriptive_link_errors, output.error_result_invariant, principles.friction.
+</spec>
 </module>

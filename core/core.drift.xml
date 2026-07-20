@@ -4,4 +4,21 @@
 <spec id="reset_action">Given a ResetClosureAction targeting a closure by its 8-character hash, the algorithm re-derives closures from scan+baseline, finds the closure with matching hash, then applies each event: NODE_CHANGED sets baseline hash to scan hash; EDGE_ADDED adds the edge to baseline; EDGE_REMOVED removes the edge from baseline; NODE_REMOVED deletes the node and filters its edges; EDGE_BROKEN is a no-op (the user must fix the scan). Closures containing ONLY broken-edge events are refused with ErrBrokenEdgeNotResettable. The returned EvaluatedState propagates Specs, Markers, Edges, and the full derived Closures. See principles.friction for why reset is per-closure.</spec>
 <spec id="scan_coverage">The scan must provide a hash for every spec and marker in the context, including empty string for deleted entries. Missing hashes for known specs or markers cause an error. Unknown spec or marker hashes in the scan that are not in the context also cause an error. See principles.specs_are_truth.</spec>
 <spec id="provenance_closure">DeriveClosures implements provenance propagation: drift on a node walks the citer chain (cited → citer) so reviewers see the upstream impact of any change. For each seed (a node with a drift event), closure membership = seed + transitive citers. Marker seeds additionally include their outgoing-edge targets (the specs they link to) so reviewers can verify the marker still implements the linked spec. Spec seeds do NOT include their cited specs (those specs' text is independent of the seed's drift). Closure membership determines a stable 8-character hash (first 8 hex chars of SHA1(sorted node IDs + sorted undirected edge keys)); closures with identical hashes merge with combined events. Markers cannot be cited, so drift through a marker stops there — this is the only retained asymmetry between specs and markers. Closures are strictly disjoint across seeds: a non-seed citer that cites multiple drifted specs appears in each spec's closure independently.</spec>
+<spec id="closure_event_ordering">
+Overview: Within a closure, the Events list and Seeds list MUST be deterministically ordered so that closure display, hash derivation downstream, and tests are stable across runs regardless of Go map-iteration order.
+
+Defined terms:
+  eventLess — the total order over DriftEvent values used to sort Events
+
+Requirements:
+  R1. DeriveClosures MUST sort each closure's Events via eventLess before returning.
+  R2. eventLess MUST define a total order with primary key Kind (numeric: groups node events before edge events naturally), then NodeID for node events, then Edge.From/Edge.To for edge events. OldHash and NewHash are tie-breakers.
+  R3. DeriveClosures MUST sort each closure's Seeds lexicographically (sort.Strings).
+  R4. The closures slice itself MUST be sorted by closure hash (already the case in pre-existing code).
+  R5. Reset semantics are unaffected: EvaluateState's reset loop applies events independently; the order in which events are applied does not change the resulting baseline state.
+
+Motivation: when two seeds produce closures that merge (same hash), the Events list is the union of both seeds' events. Without deterministic sorting, the order depended on Go map iteration, causing intermittent test failures under -race and unstable `drift todo` / `drift diff` output across runs.
+
+See also: core.provenance_closure.
+</spec>
 </module>
