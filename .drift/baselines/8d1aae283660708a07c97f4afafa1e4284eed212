@@ -1,0 +1,45 @@
+
+// Begin acquires an exclusive advisory lock on .drift/state.lock (creating it
+// if needed) and returns a Session through which all .drift/ I/O during the
+// transaction must route. Blocks until the lock is acquired. The lock is
+// auto-released when the Session is Closed or the process exits.
+//
+// Concurrent Begin calls from different processes serialize. Within the same
+// process, concurrent Begin calls block on each other (flock is not reentrant
+// across separate file descriptors of the same file).
+func Begin(dir string) (*Session, error) {
+	driftDir := filepath.Join(dir, driftSubdir)
+	if err := os.MkdirAll(driftDir, 0755); err != nil {
+		return nil, fmt.Errorf("fileio: create %s: %w", driftDir, err)
+	}
+	lockPath := filepath.Join(driftDir, lockFileName)
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("fileio: open lock %s: %w", lockPath, err)
+	}
+	if err := lockFileExclusive(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("fileio: acquire lock %s: %w", lockPath, err)
+	}
+	return &Session{
+		dir:      dir,
+		driftDir: driftDir,
+		lockFile: f,
+	}, nil
+}
+
+// Close releases the lock and closes the lock file descriptor. It is safe to
+// call multiple times; subsequent calls are no-ops.
+func (s *Session) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	if s.lockFile == nil {
+		return nil
+	}
+	return unlockFile(s.lockFile)
+}
+

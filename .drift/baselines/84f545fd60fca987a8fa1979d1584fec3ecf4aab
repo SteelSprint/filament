@@ -1,0 +1,18 @@
+
+// Read returns the bytes of .drift/<name>. A missing file returns an error
+// for which os.IsNotExist reports true. Read relies on the lock held since
+// Begin; it does not take the lock per-call.
+func (s *Session) Read(name string) ([]byte, error) {
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	if err := validName(name); err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(s.driftDir, name))
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+

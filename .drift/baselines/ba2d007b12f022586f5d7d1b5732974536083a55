@@ -1,0 +1,26 @@
+
+// Write atomically writes .drift/<name> by writing to a temp file in the same
+// directory (so os.Rename never crosses a filesystem boundary) and then
+// renaming it over the target. A crash at any point leaves either the old
+// content or the new content at the target — never a partial write. Write
+// relies on the lock held since Begin; it does not take the lock per-call.
+func (s *Session) Write(name string, data []byte) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+	if err := validName(name); err != nil {
+		return err
+	}
+	target := filepath.Join(s.driftDir, name)
+	tmp := target + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return fmt.Errorf("fileio: write temp %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, target); err != nil {
+		// Best-effort cleanup of orphan temp file; caller may still see it.
+		_ = os.Remove(tmp)
+		return fmt.Errorf("fileio: rename %s -> %s: %w", tmp, target, err)
+	}
+	return nil
+}
+
