@@ -1,0 +1,70 @@
+<module name="testutil">
+<spec id="constructors">
+Overview: Constructor helpers for core types used across drift's test suite. Each returns a fully-populated Spec, Marker, or Edge with sensible default Filepath/LineNumber fields so tests can specify only the semantically relevant fields.
+
+Defined terms:
+  Spec    — see glossary.spec; constructed with ID + Hash
+  Marker  — see glossary.marker; constructed with ID + Hash
+  Edge    — see glossary.edge; constructed with From + To
+
+Requirements:
+  R1. NewSpec(id, hash) MUST return a Spec with Filepath = id + ".xml" and LineNumber = 10. The LineNumber is a stable placeholder so tests don't depend on real file layouts.
+  R2. NewSpecWithLocation(id, hash, filepath, lineNumber) MUST return a Spec with the caller-supplied Filepath and LineNumber verbatim.
+  R3. NewMarker(id, hash) MUST return a Marker with Filepath = id + ".go", LineNumber = 20, EndLineNumber = 30. The 10-line span is a stable placeholder.
+  R4. NewMarkerWithLocation(id, hash, filepath, lineNumber) MUST return a Marker with EndLineNumber = lineNumber + 10. The 10-line span is the convention.
+  R5. NewLink(specID, markerID) MUST return an Edge with From = markerID and To = specID. The argument order (spec first, marker second) is preserved from the pre-collapse API for test readability; reviewers MUST read carefully.
+  R6. NewRef(fromSpec, toSpec) MUST return an Edge with From = fromSpec and To = toSpec. Argument order matches the citation direction (citer first, cited second).
+
+See also: glossary.spec, glossary.marker, glossary.edge.
+</spec>
+
+<spec id="assertions">
+Overview: Test assertion helpers that call t.Helper() so failure reports point to the caller, not the helper. Each compares one structural property of drift's state types and fatals on mismatch with a descriptive message.
+
+Requirements:
+  R1. AssertNoError(t, err) MUST fatal when err != nil with the error in the message.
+  R2. AssertErrorWraps(t, err, target) MUST fatal when errors.Is(err, target) returns false.
+  R3. AssertClosureCount(t, state, want) MUST fatal when len(state.Closures) != want.
+  R4. AssertBaselineHashes(t, state, specID, wantSpecHash, markerID, wantMarkerHash) MUST fatal when either the named spec or the named marker in state has a hash different from its want value.
+  R5. AssertStateEquals(t, got, want) MUST fatal when got and want differ in Specs, Markers, or Edges (compared as deep-equal after normalizing slice order).
+  R6. AssertNodeInClosure / AssertNodeNotInClosure MUST scan the closure's Nodes for the given ID and fatal according to presence.
+  R7. Every assertion helper MUST call t.Helper() so the failure line points to the test, not the helper.
+
+See also: glossary.closure.
+</spec>
+
+<spec id="fixtures">
+Overview: File-writing helpers for test setup: WriteSpecFile, WriteCodeFile, WriteIgnoreFile create real files in t.TempDir() so scanner/orchestrator tests exercise the real I/O path rather than mocks.
+
+Requirements:
+  R1. WriteSpecFile(t, dir, name, content) MUST write dir/name with the given content and 0644 permissions. The directory MUST exist before the call.
+  R2. WriteCodeFile(t, dir, name, content) MUST write dir/name with the given content and 0644 permissions.
+  R3. WriteIgnoreFile(t, dir, content) MUST write dir/drift.ignore with the given content and 0644 permissions. The filename is fixed (drift.ignore is the canonical ignore filename).
+  R4. All three helpers MUST fatal via t.Fatalf on any write error; they do not return an error to the caller.
+
+See also: scanner.text_file_detection.
+</spec>
+
+<spec id="finders">
+Overview: Lookup helpers that scan slices of Spec, Marker, Closure, or EvaluatedState for a specific entity by ID or hash. Used when a test needs to inspect a particular result without assuming slice order.
+
+Requirements:
+  R1. FindScanResultSpec / FindScanResultMarker MUST return the matching Spec/Marker and true, or the zero value and false if not found.
+  R2. FindSpecInEvaluatedState / FindMarkerInEvaluatedState MUST fatal via t.Fatalf if the entity is not found. Tests using these helpers assume presence; absence is a test bug.
+  R3. FindClosureByHash MUST fatal if no closure has the given hash.
+  R4. FindClosureContainingNode MUST fatal if no closure contains the given node ID.
+  R5. EvaluatedToState MUST convert EvaluatedState to statestore.State by dropping Closures and Scan, preserving Specs/Markers/Edges. Used when a test wants to feed evaluated output back into a stateStore.
+
+See also: glossary.closure.
+</spec>
+
+<spec id="sha1_helper">
+Overview: ExpectedSha1Hex(content) returns the sha1 hex digest of content. Used in tests to compute the expected canonical hash for a given input without duplicating the algorithm.
+
+Requirements:
+  R1. ExpectedSha1Hex MUST return the same hex string that crypto/sha1 would produce for the same input, formatted with %x.
+  R2. ExpectedSha1Hex MUST NOT strip refs or normalize content — it operates on the raw input bytes. (Spec canonical hashing strips refs; this helper does not, because tests usually want the marker-content hash, not the spec canonical hash.)
+
+See also: scanner.hash_sha1.
+</spec>
+</module>

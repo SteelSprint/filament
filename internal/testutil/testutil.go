@@ -12,6 +12,8 @@ import (
 	"drift/statestore"
 )
 
+// D! id=tcon range-start
+
 func NewSpec(id string, hash string) core.Spec {
 	return core.Spec{ID: id, Hash: hash, Filepath: id + ".xml", LineNumber: 10}
 }
@@ -38,6 +40,10 @@ func NewLink(specID string, markerID string) core.Edge {
 func NewRef(fromSpec, toSpec string) core.Edge {
 	return core.Edge{From: fromSpec, To: toSpec}
 }
+
+// D! id=tcon range-end
+
+// D! id=tassert range-start
 
 func AssertNoError(t *testing.T, err error) {
 	t.Helper()
@@ -122,10 +128,18 @@ func AssertStateEquals(t *testing.T, got, want statestore.State) {
 	}
 }
 
+// D! id=tassert range-end
+
+// D! id=tsha range-start
+
 func ExpectedSha1Hex(content string) string {
 	h := sha1.Sum([]byte(content))
 	return fmt.Sprintf("%x", h)
 }
+
+// D! id=tsha range-end
+
+// D! id=tfind range-start
 
 func FindScanResultSpec(results []core.Spec, id string) (core.Spec, bool) {
 	for _, s := range results {
@@ -144,6 +158,10 @@ func FindScanResultMarker(results []core.Marker, id string) (core.Marker, bool) 
 	}
 	return core.Marker{}, false
 }
+
+// D! id=tfind range-end
+
+// D! id=tfix range-start
 
 func WriteSpecFile(t *testing.T, dir, name, content string) {
 	t.Helper()
@@ -168,6 +186,10 @@ func WriteIgnoreFile(t *testing.T, dir, content string) {
 		t.Fatalf("failed to write drift.ignore: %v", err)
 	}
 }
+
+// D! id=tfix range-end
+
+// D! id=tfind2 range-start
 
 func FindSpecInEvaluatedState(t *testing.T, state core.EvaluatedState, id string) core.Spec {
 	t.Helper()
@@ -246,3 +268,5 @@ func AssertNodeNotInClosure(t *testing.T, c core.Closure, nodeID string) {
 		}
 	}
 }
+
+// D! id=tfind2 range-end
