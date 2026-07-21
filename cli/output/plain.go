@@ -340,8 +340,24 @@ func (p PlainPresenter) Show(r ShowResult) string {
 	if seed.Deleted {
 		sb.WriteString("Status: deleted from disk\n")
 	}
-	sb.WriteString("\n--- Seed content ---\n")
-	sb.WriteString(seed.Content)
+
+	// Summary header — mirror JSON's summary block.
+	specCount, markerCount, contentBytes := 0, 0, 0
+	for _, n := range r.Nodes {
+		if n.Kind == "spec" {
+			specCount++
+		} else {
+			markerCount++
+		}
+		contentBytes += len(n.Content)
+	}
+	sb.WriteString(fmt.Sprintf("Closure: %d nodes (%d specs, %d markers), %d edges, %d content bytes\n",
+		len(r.Nodes), specCount, markerCount, len(r.Edges), contentBytes))
+
+	if seed.Content != "" {
+		sb.WriteString("\n--- Seed content ---\n")
+		sb.WriteString(seed.Content)
+	}
 
 	if len(ancestors) > 0 {
 		sb.WriteString(fmt.Sprintf("\n\n=== Ancestors (%d, specs that transitively cite %s) ===\n", len(ancestors), r.ID))
@@ -458,6 +474,9 @@ func renderSpecSection(sb *strings.Builder, n ShowNode) {
 		sb.WriteString("Status: deleted from disk\n")
 		return
 	}
+	if n.Content == "" {
+		return
+	}
 	sb.WriteString("--- content ---\n")
 	sb.WriteString(n.Content)
 	sb.WriteString("\n")
@@ -468,6 +487,9 @@ func renderMarkerSection(sb *strings.Builder, n ShowNode) {
 	sb.WriteString(fmt.Sprintf("Hash: %s\n", n.Hash))
 	if n.Deleted {
 		sb.WriteString("Status: deleted from disk\n")
+		return
+	}
+	if n.Content == "" {
 		return
 	}
 	sb.WriteString("--- content ---\n")

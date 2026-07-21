@@ -323,8 +323,28 @@ func (p ColorPresenter) Show(r ShowResult) string {
 	if seed.Deleted {
 		sb.WriteString(t.StatusWarn.Apply("Status: deleted from disk") + "\n")
 	}
-	sb.WriteString("\n" + t.SectionHeader.Apply("--- Seed content ---") + "\n")
-	sb.WriteString(p.colorizeCodeBlock(seed.Content))
+
+	// Summary header — mirror JSON's summary block.
+	specCount, markerCount, contentBytes := 0, 0, 0
+	for _, n := range r.Nodes {
+		if n.Kind == "spec" {
+			specCount++
+		} else {
+			markerCount++
+		}
+		contentBytes += len(n.Content)
+	}
+	sb.WriteString(fmt.Sprintf("Closure: %s nodes (%s specs, %s markers), %s edges, %s content bytes\n",
+		t.Hash.Apply(fmt.Sprintf("%d", len(r.Nodes))),
+		t.Hash.Apply(fmt.Sprintf("%d", specCount)),
+		t.Hash.Apply(fmt.Sprintf("%d", markerCount)),
+		t.Hash.Apply(fmt.Sprintf("%d", len(r.Edges))),
+		t.Hash.Apply(fmt.Sprintf("%d", contentBytes))))
+
+	if seed.Content != "" {
+		sb.WriteString("\n" + t.SectionHeader.Apply("--- Seed content ---") + "\n")
+		sb.WriteString(p.colorizeCodeBlock(seed.Content))
+	}
 
 	if len(ancestors) > 0 {
 		sb.WriteString(fmt.Sprintf("\n\n%s\n", t.SectionHeader.Apply(fmt.Sprintf("=== Ancestors (%d, specs that transitively cite %s) ===", len(ancestors), r.ID))))
@@ -383,6 +403,9 @@ func (p ColorPresenter) renderColorSpecSection(sb *strings.Builder, n ShowNode) 
 		sb.WriteString(t.StatusWarn.Apply("Status: deleted from disk") + "\n")
 		return
 	}
+	if n.Content == "" {
+		return
+	}
 	sb.WriteString(t.SectionHeader.Apply("--- content ---") + "\n")
 	sb.WriteString(p.colorizeCodeBlock(n.Content))
 	sb.WriteString("\n")
@@ -394,6 +417,9 @@ func (p ColorPresenter) renderColorMarkerSection(sb *strings.Builder, n ShowNode
 	sb.WriteString(fmt.Sprintf("Hash: %s\n", t.Hash.Apply(n.Hash)))
 	if n.Deleted {
 		sb.WriteString(t.StatusWarn.Apply("Status: deleted from disk") + "\n")
+		return
+	}
+	if n.Content == "" {
 		return
 	}
 	sb.WriteString(t.SectionHeader.Apply("--- content ---") + "\n")

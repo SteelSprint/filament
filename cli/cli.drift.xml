@@ -36,9 +36,12 @@ Requirements:
   R9. The walk MUST terminate. The spec-spec graph is a DAG (enforced by core.validate), and markers cannot be cited (model.provenance A2), so BFS in either direction reaches fixpoint without cycles.
 
 Output shape:
-  Plain: indented ancestor tree (specs that cite the seed, recursively) + indented descendant tree (specs the seed cites, recursively) + flat edges block. Each tree node shows ID, filepath, hash, and linked markers with their code range.
+  Plain: summary header (nodeCount/edgeCount/specCount/markerCount/totalContentBytes) + indented ancestor section (specs that cite the seed, recursively) + indented descendant section (specs the seed cites, recursively) + markers in closure section + flat edges block. Each node shows ID, filepath, hash, and (when present) content.
   Color: same structure as Plain, themed per output.theme_system.
   JSON: flat nodes array (kind/id/filepath/hash/content for specs; kind/id/filepath/lines/hash/content for markers) + flat edges array + a summary block with nodeCount, edgeCount, specCount, markerCount, totalContentBytes.
+
+Flags:
+  --no-content — omit Content from every node in the output. Drops totalContentBytes near zero (IDs and hashes only remain). Used by dispatchers that want the graph overview cheaply and will fetch full content per-spec via a second call. Applied to all three modes (plain, color, JSON).
 
 See also: glossary.closure, core.provenance_closure, scanner.spec_content_read, scanner.marker_content_read, principles.friction.
 </spec>
